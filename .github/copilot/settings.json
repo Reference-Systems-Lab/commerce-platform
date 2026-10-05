@@ -1,0 +1,14 @@
+{
+  "enabledPlugins": {
+    "workflow@agent-workflow-tooling": true,
+    "org@agent-workflow-tooling": true
+  },
+  "extraKnownMarketplaces": {
+    "agent-workflow-tooling": {
+      "source": {
+        "source": "github",
+        "repo": "Reference-Systems-Lab/agent-workflow-tooling"
+      }
+    }
+  }
+}

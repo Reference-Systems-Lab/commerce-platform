@@ -1,0 +1,21 @@
+#!/bin/sh
+# Turns on the committed Git hooks for this clone. Safe to re-run.
+set -eu
+
+if ! command -v git-secrets >/dev/null 2>&1; then
+  echo "Install git-secrets first: https://github.com/awslabs/git-secrets#installing-git-secrets" >&2
+  exit 1
+fi
+
+git config core.hooksPath .githooks
+
+# What git-secrets refuses to commit. Patterns live in this clone's .git/config.
+prohibit() {
+  git config --get-all secrets.patterns | grep -Fqx -- "$1" || git secrets --add "$1"
+}
+git secrets --register-aws >/dev/null
+prohibit 'BEGIN[A-Z[:blank:]]*PRIVATE[[:blank:]]KEY' # PEM and OpenSSH private keys
+prohibit 'gh[pousr]_[A-Za-z0-9]{36,}'                # GitHub tokens
+prohibit 'github_pat_[A-Za-z0-9_]{22,}'              # GitHub fine-grained tokens
+
+echo "Git hooks on: git-secrets now scans every commit in this clone."

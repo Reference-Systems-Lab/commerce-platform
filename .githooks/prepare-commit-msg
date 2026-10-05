@@ -1,0 +1,4 @@
+#!/bin/sh
+# Scans the commits a merge brings in for secrets.
+. "$(dirname "$0")/require-git-secrets.sh"
+exec git secrets --prepare_commit_msg_hook -- "$@"

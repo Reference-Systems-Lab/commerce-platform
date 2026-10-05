@@ -1,0 +1,4 @@
+#!/bin/sh
+# Scans the commit message for secrets.
+. "$(dirname "$0")/require-git-secrets.sh"
+exec git secrets --commit_msg_hook -- "$@"
