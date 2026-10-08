@@ -132,6 +132,9 @@ jobs:
           ! sh scripts/trust.sh check
           [ ! -e /usr/local/share/ca-certificates/rsl-commerce-dev-ca.crt ]
           ! certutil -L -d "sql:$HOME/.pki/nssdb" | grep 'rsl-commerce dev CA'
+          # The system bundle no longer vouches for the platform: curl must now refuse the certificate.
+          code=0; curl -sS -o /dev/null https://rsl-commerce.test/ || code=$?
+          [ "$code" = 60 ]
 
       - name: Logs
         if: failure()
