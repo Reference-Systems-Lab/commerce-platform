@@ -24,12 +24,14 @@ both, including where the build had to differ from the spike.
   joins. Mailpit gets the original `Host` header, because it refuses any other.
 - **Local TLS.** `openssl` creates a root CA and one certificate for the eight addresses (P-D4); no
   mkcert. The root is `pathlen:0` and name-constrained: it permits only `rsl-commerce.test` and its
-  subdomains, and excludes every IPv4 and IPv6 address. The root lasts 825 days, the certificate
+  subdomains, and excludes every IPv4 and IPv6 address. It may issue TLS server certificates only
+  (`extendedKeyUsage = serverAuth`), so its key can't sign code or email that Windows, NSS or OpenSSL
+  would accept. The root lasts 825 days, the certificate
   397. `make bootstrap` reissues the certificate when it has under 30 days left or no longer
   matches, and replaces the root (which must be trusted again) when it has under 427.
-- **Trust, per system.** WSL2: Windows' `CurrentUser\Root`, through `Import-Certificate`, with one
-  confirmation and no administrator rights; WSL's own store is untouched. macOS: the System
-  keychain. Linux: the system store plus Chrome's and Firefox's NSS databases. `make untrust`
+- **Trust, per system.** WSL2: Windows' `CurrentUser\Root`, with one confirmation and no
+  administrator rights; WSL's own store is untouched. macOS: the System keychain, trusted for SSL
+  only. Linux: the system store plus Chrome's and Firefox's NSS databases. `make untrust`
   removes only roots with this platform's organization.
 - **Hosts file.** `make hosts` writes one marked block holding only the missing addresses, after
   one elevation. It compares hashes before writing, keeps a one-time backup, and leaves every other
@@ -58,6 +60,10 @@ both, including where the build had to differ from the spike.
   The root's key stays 0600 in a 0700 directory and is never mounted.
 - **IPv6 is excluded from the root in the expanded form.** `openssl` rejects the short `IP:::/0`;
   the constraint is `excluded;IP:0:0:0:0:0:0:0:0/0:0:0:0:0:0:0:0`.
+- **Windows trust adds the root from memory.** P-D4 named `Import-Certificate`, which reads a file.
+  The bytes are checked against the thumbprint the user is shown, then added through the same store
+  API with no file in between, so nothing can swap the certificate before Windows asks. Same store,
+  same confirmation.
 - **No NSS on macOS.** P-D4 trusted the root in NSS as well. Firefox on macOS reads roots from the
   System keychain as enterprise roots, so the keychain alone covers Safari, Chrome and Firefox.
 
@@ -89,8 +95,8 @@ both, including where the build had to differ from the spike.
 - The name constraint was tested where it matters on WSL2: `openssl verify`, a Windows
   `X509Chain` (`HasNotPermittedNameConstraint`), Edge and Chrome all refuse a `localhost`
   certificate the root signed. A client that ignores name constraints would accept such a
-  certificate, so the root's key would act as an interception key for that client. It never leaves
-  `certs/ca`.
+  certificate, so for that client the root's key would act as an interception key for TLS (and only
+  TLS: the root's own usage limit still applies). The key never leaves `certs/ca`.
 - Changing a credential means `make reset`, which deletes the data volumes, because Postgres and
   RabbitMQ store their first password in their volumes.
 - The trust and hosts paths for macOS and Linux are written and linted but not yet run on those
