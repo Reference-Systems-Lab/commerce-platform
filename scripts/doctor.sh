@@ -141,6 +141,14 @@ if [ "$OS" = wsl ]; then
 fi
 
 info "This checkout"
+# The containers read proxy/ and config/ as their own users. A checkout made under a strict umask
+# (027, 077) leaves those files unreadable to them, and the proxy or RabbitMQ won't start.
+unreadable=$(find proxy config \( -type f ! -perm -o=r \) -o \( -type d ! -perm -o=rx \) 2>/dev/null | head -n 3 | tr '\n' ' ')
+if [ -n "$unreadable" ]; then
+  bad "the containers can't read ${unreadable}(this checkout was made with a strict umask). Run 'chmod -R a+rX proxy config'."
+else
+  ok "the containers can read proxy/ and config/"
+fi
 if [ ! -f .env ]; then
   bad ".env is missing. Run 'make bootstrap'."
 else
