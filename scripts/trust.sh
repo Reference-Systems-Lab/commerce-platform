@@ -49,19 +49,16 @@ if ($tp -match '^[0-9A-F]{40}$' -and (Test-Path "Cert:\CurrentUser\Root\$tp")) {
 EOF
 )
 
-# Import-Certificate needs a file: write the bytes received through WSLENV to a temporary one, after
-# checking they are the certificate whose thumbprint was shown.
+# Adds the certificate from memory, after checking it is the one whose thumbprint was shown. No file is
+# written, so nothing can swap it between the check and the import. Windows shows its confirmation.
 PS_TRUST=$(
   cat <<'EOF'
-$bytes = [Convert]::FromBase64String($env:RSL_ROOT_DER)
-$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($bytes)
+$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new([Convert]::FromBase64String($env:RSL_ROOT_DER))
 if ($cert.Thumbprint -ne $env:RSL_THUMBPRINT) { 'mismatch'; exit }
-$file = Join-Path $env:TEMP ('rsl-commerce-root-' + [guid]::NewGuid() + '.cer')
-[IO.File]::WriteAllBytes($file, $bytes)
+$store = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'CurrentUser')
+$store.Open('ReadWrite')
 $err = ''
-try { Import-Certificate -FilePath $file -CertStoreLocation Cert:\CurrentUser\Root | Out-Null }
-catch { $err = $_.Exception.Message }
-finally { Remove-Item -LiteralPath $file }
+try { $store.Add($cert) } catch { $err = $_.Exception.InnerException.Message } finally { $store.Close() }
 if (Test-Path "Cert:\CurrentUser\Root\$env:RSL_THUMBPRINT") { 'added' } else { "declined $err" }
 EOF
 )
@@ -116,8 +113,11 @@ macos_ours() {
   security find-certificate -a -Z -c "$RSL_ROOT_CN" "$KEYCHAIN" 2>/dev/null | sed -n 's/^SHA-1 hash: //p'
 }
 
+# macos_check: the root is in the System keychain and has admin trust settings. Present without trust
+# settings (a cancelled authorization) isn't trusted.
 macos_check() {
-  macos_ours | grep -qx "$THUMBPRINT"
+  macos_ours | grep -qx "$THUMBPRINT" &&
+    security dump-trust-settings -d 2>/dev/null | grep -qF "$(openssl x509 -in "$ROOT" -noout -subject | sed 's/.*CN *= *//')"
 }
 
 macos_trust() {
@@ -127,8 +127,10 @@ macos_trust() {
     return 0
   fi
   info "sudo asks for your password to add it to the System keychain."
-  sudo security add-trusted-cert -d -r trustRoot -k "$KEYCHAIN" "$ROOT"
-  macos_check || die "the certificate isn't in the System keychain."
+  # -p ssl: trusted for TLS only, not for code signing or email.
+  sudo security add-trusted-cert -d -r trustRoot -p ssl -k "$KEYCHAIN" "$ROOT" ||
+    die "macOS didn't add it (the authorization was cancelled?). Run 'make trust' again."
+  macos_check || die "the certificate isn't trusted in the System keychain."
   ok "The System keychain trusts it now. Restart your browsers if they still warn."
 }
 
@@ -141,17 +143,28 @@ macos_untrust() {
 
 # --- Linux: the system store and NSS ---------------------------------------------------------------
 
+# have <tool>: true when it exists, including in the sbin directories a normal user's PATH omits
+# (Debian keeps update-ca-certificates in /usr/sbin; sudo finds it there).
+have() {
+  command -v "$1" >/dev/null 2>&1 || [ -x "/usr/sbin/$1" ] || [ -x "/sbin/$1" ]
+}
+
 # linux_anchor: where this distribution's system store takes an extra root, or nothing when unknown.
 linux_anchor() {
-  if [ -d /usr/local/share/ca-certificates ] && command -v update-ca-certificates >/dev/null 2>&1; then
+  if [ -d /usr/local/share/ca-certificates ] && have update-ca-certificates; then
     echo /usr/local/share/ca-certificates/rsl-commerce-dev-ca.crt
-  elif [ -d /etc/pki/ca-trust/source/anchors ] && command -v update-ca-trust >/dev/null 2>&1; then
+  elif [ -d /etc/pki/ca-trust/source/anchors ] && have update-ca-trust; then
     echo /etc/pki/ca-trust/source/anchors/rsl-commerce-dev-ca.crt
   fi
 }
 
 linux_refresh() {
-  if command -v update-ca-certificates >/dev/null 2>&1; then sudo update-ca-certificates; else sudo update-ca-trust; fi
+  if have update-ca-certificates; then sudo update-ca-certificates; else sudo update-ca-trust; fi
+}
+
+# nss_nickname: this root's name in the NSS databases.
+nss_nickname() {
+  echo "$RSL_ROOT_CN $(printf '%s' "$THUMBPRINT" | cut -c1-8)"
 }
 
 # nss_dbs: Chrome's NSS database and each Firefox profile's (the snap's too), one per line.
@@ -161,9 +174,18 @@ nss_dbs() {
   done
 }
 
+# linux_check: the system store has it, and so does every NSS database (Chrome and Firefox read those,
+# not the system store). Without certutil, browsers with an NSS database don't trust it.
 linux_check() {
   anchor=$(linux_anchor)
-  [ -n "$anchor" ] && cmp -s "$ROOT" "$anchor"
+  [ -n "$anchor" ] && cmp -s "$ROOT" "$anchor" || return 1
+  dbs=$(nss_dbs)
+  [ -n "$dbs" ] || return 0
+  command -v certutil >/dev/null 2>&1 || return 1
+  nickname=$(nss_nickname)
+  for db in $dbs; do
+    certutil -L -d "sql:$db" -n "$nickname" >/dev/null 2>&1 || return 1
+  done
 }
 
 linux_trust() {
@@ -184,7 +206,7 @@ linux_trust() {
     warn "certutil isn't installed, so Chrome and Firefox don't trust it yet. Install libnss3-tools (Debian, Ubuntu) or nss-tools (Fedora), then run 'make trust' again."
     return 0
   fi
-  nickname="$RSL_ROOT_CN $(printf '%s' "$THUMBPRINT" | cut -c1-8)"
+  nickname=$(nss_nickname)
   nss_dbs | while IFS= read -r db; do
     if certutil -L -d "sql:$db" -n "$nickname" >/dev/null 2>&1; then
       ok "already in $db"
