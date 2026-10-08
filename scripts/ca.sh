@@ -26,7 +26,6 @@ ROOT_DAYS=${RSL_ROOT_DAYS:-825} # test hook: tests shorten it to exercise rotati
 LEAF_DAYS=${RSL_LEAF_DAYS:-397} # test hook: tests shorten it to exercise renewal
 LEAF_RENEW_DAYS=30
 ROOT_MIN_DAYS=427 # 397-day leaf + 30-day renewal window
-ROOT_O="rsl-commerce local development"
 
 need_cmd "$OPENSSL" "Install OpenSSL (macOS ships LibreSSL as openssl, which works too)."
 
@@ -67,8 +66,8 @@ prompt = no
 x509_extensions = v3_ca
 
 [dn]
-O = $ROOT_O
-CN = rsl-commerce dev CA $(uname -n) $(date +%Y%m%d)
+O = $RSL_ROOT_O
+CN = $RSL_ROOT_CN $(uname -n) $(date +%Y%m%d)
 
 [v3_ca]
 basicConstraints = critical, CA:TRUE, pathlen:0

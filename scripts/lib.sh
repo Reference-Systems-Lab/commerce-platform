@@ -9,6 +9,11 @@ RSL_HOSTS="rsl-commerce.test api.rsl-commerce.test admin.rsl-commerce.test check
 # Compose project name, so volumes are named rsl-commerce_<service>.
 RSL_PROJECT=rsl-commerce
 
+# The root CA's subject (scripts/ca.sh). Every root this platform creates has this organization and a
+# common name that starts with this prefix; scripts/trust.sh untrust removes only those.
+RSL_ROOT_O="rsl-commerce local development"
+RSL_ROOT_CN="rsl-commerce dev CA"
+
 info() { printf '%s\n' "$*"; }
 ok() { printf '  ok    %s\n' "$*"; }
 warn() { printf '  warn  %s\n' "$*"; }

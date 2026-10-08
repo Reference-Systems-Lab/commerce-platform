@@ -2,7 +2,7 @@
 # line lives in scripts/ as POSIX sh, so each command behaves the same on WSL2, macOS and Linux.
 
 .DEFAULT_GOAL := help
-.PHONY: help up down reset logs smoke
+.PHONY: help up down reset logs smoke trust untrust
 
 # Stopping creates nothing, so it needs no credentials. The placeholders let Compose read compose.yaml
 # when .env is missing or incomplete; without them `make reset` fails in exactly the case bootstrap
@@ -34,3 +34,9 @@ logs: ## Follow the logs (s=<service> for one service)
 
 smoke: ## Check the running platform end to end
 	@sh ./scripts/smoke.sh
+
+trust: ## Trust the platform's root certificate in your browsers (asks you once)
+	@sh ./scripts/trust.sh
+
+untrust: ## Remove every root certificate this platform created from your trust store
+	@sh ./scripts/trust.sh untrust
