@@ -54,3 +54,19 @@ volume_exists() {
 env_get() {
   sed -n "s/^$1=//p" .env 2>/dev/null | tail -n 1
 }
+
+# powershell <script> [NAME=value...]: run a script in Windows PowerShell from WSL and print its output.
+# The script goes in encoded, so no shell quoting reaches it. Values go in as environment variables listed
+# in WSLENV, never spliced into the code.
+powershell() {
+  ps_script=$1
+  shift
+  ps_wslenv=${WSLENV:-}
+  for ps_pair in "$@"; do ps_wslenv="${ps_wslenv:+$ps_wslenv:}${ps_pair%%=*}"; done
+  ps_exe=$(wslpath -u 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe')
+  [ -x "$ps_exe" ] || die "Windows PowerShell isn't at $ps_exe. Is WSL interop turned off?"
+  # shellcheck disable=SC2016 # PowerShell variables, not shell ones
+  ps_script=$(printf '%s\n%s\n' '$ErrorActionPreference = "Stop"; $ProgressPreference = "SilentlyContinue"' "$ps_script")
+  env "$@" WSLENV="$ps_wslenv" "$ps_exe" -NoProfile -EncodedCommand \
+    "$(printf '%s' "$ps_script" | iconv -f UTF-8 -t UTF-16LE | base64 -w0)" | tr -d '\r'
+}

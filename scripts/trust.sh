@@ -28,6 +28,9 @@ if [ "$MODE" != untrust ]; then
   need_cmd openssl "Install OpenSSL."
   # SHA-1, as uppercase hex without colons: the form Windows and macOS show.
   THUMBPRINT=$(openssl x509 -in "$ROOT" -noout -fingerprint -sha1 | sed 's/.*=//' | tr -d ':' | tr 'a-f' 'A-F')
+  case $THUMBPRINT in
+    *[!0-9A-F]* | "") die "couldn't read the thumbprint of $ROOT." ;;
+  esac
 fi
 
 # describe: say which certificate this is before anything asks you to confirm it.
@@ -38,16 +41,11 @@ describe() {
 
 # --- WSL2: Windows' CurrentUser\Root ---------------------------------------------------------------
 
-PS_PRELUDE=$(
-  cat <<'EOF'
-$ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
-EOF
-)
-
 PS_CHECK=$(
   cat <<'EOF'
-if (Test-Path "Cert:\CurrentUser\Root\$env:RSL_THUMBPRINT") { 'yes' } else { 'no' }
+$tp = $env:RSL_THUMBPRINT
+# An empty thumbprint would test the store itself, which always exists.
+if ($tp -match '^[0-9A-F]{40}$' -and (Test-Path "Cert:\CurrentUser\Root\$tp")) { 'yes' } else { 'no' }
 EOF
 )
 
@@ -79,19 +77,8 @@ foreach ($c in @(Get-ChildItem Cert:\CurrentUser\Root | Where-Object { $_.Subjec
 EOF
 )
 
-# powershell <script>: run a script in Windows PowerShell. It goes in encoded, so no shell quoting
-# reaches it, and values go in as environment variables listed in WSLENV, never spliced into the code.
-powershell() {
-  ps_exe=$(wslpath -u 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe')
-  [ -x "$ps_exe" ] || die "Windows PowerShell isn't at $ps_exe. Is WSL interop turned off?"
-  RSL_THUMBPRINT=$THUMBPRINT RSL_ROOT_O=$RSL_ROOT_O RSL_ROOT_DER=$(sed '/-----/d' "$ROOT" 2>/dev/null | tr -d '\n') \
-    WSLENV="${WSLENV:+$WSLENV:}RSL_THUMBPRINT:RSL_ROOT_O:RSL_ROOT_DER" \
-    "$ps_exe" -NoProfile -EncodedCommand "$(printf '%s\n%s\n' "$PS_PRELUDE" "$1" | iconv -f UTF-8 -t UTF-16LE | base64 -w0)" |
-    tr -d '\r'
-}
-
 wsl_check() {
-  [ "$(powershell "$PS_CHECK")" = yes ]
+  [ "$(powershell "$PS_CHECK" RSL_THUMBPRINT="$THUMBPRINT")" = yes ]
 }
 
 wsl_trust() {
@@ -101,7 +88,7 @@ wsl_trust() {
     return 0
   fi
   info "Windows will ask you to confirm. Check that its thumbprint matches the one above, then choose Yes."
-  result=$(powershell "$PS_TRUST")
+  result=$(powershell "$PS_TRUST" RSL_THUMBPRINT="$THUMBPRINT" RSL_ROOT_DER="$(sed '/-----/d' "$ROOT" | tr -d '\n')")
   case $result in
     added) ok "Windows trusts it now (CurrentUser\\Root). Restart your browsers if they still warn." ;;
     declined*) die "Windows didn't add it (${result#declined }). Run 'make trust' again and choose Yes." ;;
@@ -110,7 +97,7 @@ wsl_trust() {
 }
 
 wsl_untrust() {
-  result=$(powershell "$PS_UNTRUST")
+  result=$(powershell "$PS_UNTRUST" RSL_ROOT_O="$RSL_ROOT_O")
   [ -n "$result" ] || {
     ok "Windows has no rsl-commerce root to remove."
     return 0
