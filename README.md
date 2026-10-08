@@ -114,9 +114,9 @@ certificates, trust and the hosts file, and says what to do about each problem.
 
 ## Git hooks
 
-Run `.githooks/setup` once after cloning. It turns on the committed hooks, which use
-[git-secrets](https://github.com/awslabs/git-secrets#installing-git-secrets) to refuse any commit
-that contains a secret.
+Run `.githooks/setup` once after cloning, and again when a pull changes it. It turns on the
+committed hooks, which use [git-secrets](https://github.com/awslabs/git-secrets#installing-git-secrets)
+to refuse any commit that contains a secret.
 
 ## Status
 

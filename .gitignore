@@ -3,6 +3,8 @@
 
 # Generated per machine by `make bootstrap`. Never commit them: they hold local secrets and keys.
 .env
+.env.*
+!.env.example
 secrets/
 certs/
 

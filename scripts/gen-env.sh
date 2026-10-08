@@ -40,7 +40,9 @@ generate POSTGRES_PASSWORD 24 "${RSL_PROJECT}_postgres"
 generate RABBITMQ_PASSWORD 24 "${RSL_PROJECT}_rabbitmq"
 generate MEILI_MASTER_KEY 32
 
-# Every other key in .env.example is optional and never generated: add it empty so .env lists it.
+# Every other key in .env.example is optional and never generated: add it empty so .env lists it. A
+# hand-edited .env may lack its final newline; add one first, so an added key starts its own line.
+if [ -s .env ] && [ -n "$(tail -c 1 .env)" ]; then echo >>.env; fi
 sed -n 's/^\([A-Z][A-Z0-9_]*\)=.*/\1/p' .env.example | while read -r key; do
   grep -q "^$key=" .env || printf '%s=\n' "$key" >>.env
 done
