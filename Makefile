@@ -2,7 +2,7 @@
 # line lives in scripts/ as POSIX sh, so each command behaves the same on WSL2, macOS and Linux.
 
 .DEFAULT_GOAL := help
-.PHONY: help up down reset logs smoke trust untrust hosts
+.PHONY: help bootstrap up down reset logs status doctor smoke trust untrust hosts
 
 # Stopping creates nothing, so it needs no credentials. The placeholders let Compose read compose.yaml
 # when .env is missing or incomplete; without them `make reset` fails in exactly the case bootstrap
@@ -10,7 +10,10 @@
 COMPOSE_STOP = RABBITMQ_PASSWORD=unused MEILI_MASTER_KEY=unused docker compose
 
 help: ## List the commands
-	@grep -E '^[a-z][a-z-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN { FS = ":.*## " } { printf "  %-8s %s\n", $$1, $$2 }'
+	@grep -E '^[a-z][a-z-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN { FS = ":.*## " } { printf "  %-10s %s\n", $$1, $$2 }'
+
+bootstrap: ## Prepare this machine: secrets, certificates, trust; safe to run again
+	@sh ./scripts/bootstrap.sh
 
 up: ## Start the platform and wait until every service is healthy
 	@for f in .env secrets/postgres_password certs/leaf/cert.pem certs/leaf/key.pem; do \
@@ -31,6 +34,12 @@ reset: ## Stop the platform and delete its data; keeps .env, secrets/ and certs/
 
 logs: ## Follow the logs (s=<service> for one service)
 	docker compose logs --follow $(s)
+
+status: ## Show service health, the certificate, trust and the hosts file
+	@sh ./scripts/status.sh
+
+doctor: ## Check this machine and checkout for problems, changing nothing
+	@sh ./scripts/doctor.sh
 
 smoke: ## Check the running platform end to end
 	@sh ./scripts/smoke.sh

@@ -70,3 +70,19 @@ powershell() {
   env "$@" WSLENV="$ps_wslenv" "$ps_exe" -NoProfile -EncodedCommand \
     "$(printf '%s' "$ps_script" | iconv -f UTF-8 -t UTF-16LE | base64 -w0)" | tr -d '\r'
 }
+
+# cert_days_left <file>: whole days until the certificate expires, 0 when it already has. A binary search
+# over `openssl x509 -checkend`, because no portable `date` parses certificate dates (GNU-only `date -d`).
+cert_days_left() {
+  lo=0
+  hi=4000
+  "${OPENSSL:-openssl}" x509 -checkend 0 -noout -in "$1" >/dev/null 2>&1 || {
+    echo 0
+    return 0
+  }
+  while [ $((hi - lo)) -gt 1 ]; do
+    mid=$(((lo + hi) / 2))
+    if "${OPENSSL:-openssl}" x509 -checkend $((mid * 86400)) -noout -in "$1" >/dev/null 2>&1; then lo=$mid; else hi=$mid; fi
+  done
+  echo "$lo"
+}
