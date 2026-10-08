@@ -12,7 +12,7 @@ x-hardened: &hardened
   cap_drop: [ALL]
   security_opt: ["no-new-privileges:true"]
   init: true
-  tmpfs: ["/tmp"]
+  tmpfs: ["/tmp:size=64m"] # sized, so a runaway writer fills its own tmpfs rather than the machine's memory
 
 services:
   # Terminates TLS for the 8 local addresses and routes each to its service (proxy/conf.d).
@@ -50,7 +50,7 @@ services:
     secrets: [postgres_password]
     volumes:
       - postgres:/var/lib/postgresql
-    tmpfs: ["/tmp", "/var/run/postgresql:uid=999,gid=999"]
+    tmpfs: ["/tmp:size=64m", "/var/run/postgresql:uid=999,gid=999,size=1m"]
     healthcheck:
       # Over TCP: the server the image starts for its first-run setup listens only on the socket, so this
       # stays unhealthy until the real server is up.
@@ -66,6 +66,8 @@ services:
     <<: *hardened
     image: valkey/valkey:9.1.2-trixie@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
     user: "999:999"
+    environment:
+      TINI_SUBREAPER: "1" # the image's own tini runs under Docker's init; this lets it reap as intended
     volumes:
       - valkey:/data
     healthcheck:
@@ -85,13 +87,16 @@ services:
       # Applied only when the data volume is first created; `make reset` starts over.
       RABBITMQ_DEFAULT_USER: commerce
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?run make bootstrap first}
+      ERL_CRASH_DUMP: /var/lib/rabbitmq/erl_crash.dump # the root filesystem is read-only; keep a crash dump
     ports:
       - "127.0.0.1:15672:15672" # management UI, for developers only
     volumes:
       - rabbitmq:/var/lib/rabbitmq
       - { type: bind, source: ./config/rabbitmq/20-commerce.conf, target: /etc/rabbitmq/conf.d/20-commerce.conf, read_only: true, bind: { create_host_path: false } }
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      # Healthy once AMQP (5672) and the management API accept connections, not merely once the node
+      # answers: services that wait for rabbitmq to be healthy connect straight away.
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
       interval: 10s
       timeout: 10s
       retries: 5
@@ -127,6 +132,8 @@ services:
       MEILI_ENV: development
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?run make bootstrap first}
       MEILI_NO_ANALYTICS: "true"
+      TINI_SUBREAPER: "1" # as for valkey
+    tmpfs: ["/tmp:size=512m"] # indexing writes its sort files here
     volumes:
       - meilisearch:/meili_data
     healthcheck:
