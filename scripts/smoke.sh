@@ -123,6 +123,9 @@ want declare 201 "$declared"
 want type quorum "$(rabbit "$queue" 2>/dev/null | sed -n 's/.*"type":"\([^"]*\)".*/\1/p')"
 want delete 204 "$(rabbit -X DELETE -o /dev/null -w '%{http_code}' "$queue" 2>&1 || true)"
 check "RabbitMQ: a queue declared without a type is a quorum queue"
+# From another container, as the backend will connect. The postgres image has bash for /dev/tcp.
+want "AMQP connect" yes "$(docker compose exec -T postgres bash -c 'exec 3<>/dev/tcp/rabbitmq/5672 && echo yes' 2>&1 || true)"
+check "RabbitMQ: AMQP answers at rabbitmq:5672 from another container"
 [ "$declared" != 401 ] || warn "RabbitMQ refused the password in .env. 'make reset' starts fresh."
 
 mail_api=https://mail.$RSL_DOMAIN/api/v1
@@ -140,12 +143,17 @@ case $id in
   "" | *[!A-Za-z0-9]*) problems="$problems${problems:+; }the message didn't arrive in the API" ;;
   *)
     # Always with the message's ID: a write without IDs applies to every message.
+    want "listed in /api/v1/messages" yes "$(tls "mail.$RSL_DOMAIN" "$mail_api/messages" 2>/dev/null | grep -q "$marker" && echo yes || echo no)"
     want "PUT from Mailpit's own page" 200 "$(mailpit_write PUT "https://mail.$RSL_DOMAIN" "{\"IDs\":[\"$id\"],\"Read\":true}")"
     want "PUT from another site" 403 "$(mailpit_write PUT https://example.com "{\"IDs\":[\"$id\"],\"Read\":true}")"
     want DELETE 200 "$(mailpit_write DELETE "https://mail.$RSL_DOMAIN" "{\"IDs\":[\"$id\"]}")"
     ;;
 esac
 check "Mailpit: mail sent to mailpit:1025 reaches the API, and the UI's writes work through the proxy"
+want "WebSocket upgrade" 101 "$(tls "mail.$RSL_DOMAIN" --http1.1 -o /dev/null -w '%{http_code}' --max-time 3 \
+  -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' \
+  -H 'Sec-WebSocket-Key: c21va2UtY2hlY2sta2V5IQ==' -H "Origin: https://mail.$RSL_DOMAIN" "https://mail.$RSL_DOMAIN/api/events" 2>/dev/null || true)"
+check "Mailpit: its live-update WebSocket opens through the proxy"
 
 # meili <curl args...>: a request to meilisearch:7700 from inside its container; prints the status.
 meili() {
