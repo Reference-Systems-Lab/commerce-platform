@@ -4,10 +4,11 @@
 .DEFAULT_GOAL := help
 .PHONY: help bootstrap up down reset logs status doctor smoke lint trust untrust hosts
 
-# Stopping creates nothing, so it needs no credentials. The placeholders let Compose read compose.yaml
-# when .env is missing or incomplete; without them `make reset` fails in exactly the case bootstrap
-# sends you to it (a credential missing while its data volume still exists).
-COMPOSE_STOP = RABBITMQ_PASSWORD=unused MEILI_MASTER_KEY=unused docker compose
+# Stopping and reading logs create nothing, so they need no credentials. The placeholders let Compose
+# read compose.yaml when .env is missing or incomplete; without them `make reset` fails in exactly the
+# case bootstrap sends you to it (a credential missing while its data volume still exists).
+# scripts/status.sh uses the same placeholders.
+COMPOSE_NO_CREATE = RABBITMQ_PASSWORD=unused MEILI_MASTER_KEY=unused docker compose
 
 help: ## List the commands
 	@grep -E '^[a-z][a-z-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN { FS = ":.*## " } { printf "  %-10s %s\n", $$1, $$2 }'
@@ -22,7 +23,7 @@ up: ## Start the platform and wait until every service is healthy
 	docker compose up --detach --wait
 
 down: ## Stop the platform and keep its data
-	@$(COMPOSE_STOP) down
+	@$(COMPOSE_NO_CREATE) down
 
 reset: ## Stop the platform and delete its data; keeps .env, secrets/ and certs/ (CONFIRM=yes skips the question)
 	@if [ "$(CONFIRM)" != yes ]; then \
@@ -30,10 +31,10 @@ reset: ## Stop the platform and delete its data; keeps .env, secrets/ and certs/
 		read -r answer; \
 		[ "$$answer" = yes ] || { echo 'Cancelled. Nothing was deleted.'; exit 1; }; \
 	fi
-	@$(COMPOSE_STOP) down --volumes --remove-orphans
+	@$(COMPOSE_NO_CREATE) down --volumes --remove-orphans
 
 logs: ## Follow the logs (s=<service> for one service)
-	docker compose logs --follow $(s)
+	@$(COMPOSE_NO_CREATE) logs --follow $(s)
 
 status: ## Show service health, the certificate, trust and the hosts file
 	@sh ./scripts/status.sh
