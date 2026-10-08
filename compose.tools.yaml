@@ -1,0 +1,25 @@
+# The lint tools scripts/lint.sh runs (make lint), pinned by digest like every other image. A separate
+# project, so the platform's own commands never touch it. Each tool reads the checkout read-only, has no
+# network, and runs hardened as an unprivileged user.
+name: rsl-commerce-tools
+
+x-tool: &tool
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  init: true
+  network_mode: none
+  user: "65534:65534"
+  working_dir: /mnt
+  volumes:
+    - { type: bind, source: ., target: /mnt, read_only: true, bind: { create_host_path: false } }
+
+services:
+  shellcheck:
+    <<: *tool
+    image: koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d
+
+  hadolint:
+    <<: *tool
+    image: hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d
+    entrypoint: ["/bin/hadolint"]

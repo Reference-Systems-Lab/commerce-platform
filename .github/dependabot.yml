@@ -1,8 +1,45 @@
 version: 2
 
+# Every ecosystem waits 7 days after a release before proposing it, and groups its routine updates
+# into one pull request. Images are pinned by tag and digest; Dependabot updates both.
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-  # Add this repository's package ecosystem as its code lands
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # compose.yaml (the platform) and compose.tools.yaml (the lint tools).
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      images:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      # Stay on nginx's stable line (1.30); a new stable line is a deliberate change.
+      - dependency-name: nginxinc/nginx-unprivileged
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # A new PostgreSQL major version needs a data migration, so it is never automatic.
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+
+  # The derived images' pinned bases (images/mailpit, images/meilisearch).
+  - package-ecosystem: docker
+    directories: ["/images/*"]
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      base-images:
+        patterns: ["*"]
+        update-types: [minor, patch]

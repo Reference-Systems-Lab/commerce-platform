@@ -2,7 +2,7 @@
 # line lives in scripts/ as POSIX sh, so each command behaves the same on WSL2, macOS and Linux.
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap up down reset logs status doctor smoke trust untrust hosts
+.PHONY: help bootstrap up down reset logs status doctor smoke lint trust untrust hosts
 
 # Stopping creates nothing, so it needs no credentials. The placeholders let Compose read compose.yaml
 # when .env is missing or incomplete; without them `make reset` fails in exactly the case bootstrap
@@ -43,6 +43,9 @@ doctor: ## Check this machine and checkout for problems, changing nothing
 
 smoke: ## Check the running platform end to end
 	@sh ./scripts/smoke.sh
+
+lint: ## Static checks and tests, as CI runs them (after make bootstrap)
+	@sh ./scripts/lint.sh
 
 trust: ## Trust the platform's root certificate in your browsers (asks you once)
 	@sh ./scripts/trust.sh

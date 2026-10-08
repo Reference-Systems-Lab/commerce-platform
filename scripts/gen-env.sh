@@ -5,6 +5,7 @@
 # Values look like rsldev_<hex> so git-secrets can recognise them anywhere (.githooks/setup).
 set -eu
 cd "$(dirname "$0")/.."
+# shellcheck source=scripts/lib.sh
 . ./scripts/lib.sh
 
 umask 077

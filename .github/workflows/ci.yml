@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Bootstrap (secrets and certificates only)
+        run: sh scripts/bootstrap.sh --ci
+
+      - name: Lint
+        run: make lint
+
+  smoke:
+    name: Smoke
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Bootstrap (secrets and certificates only)
+        run: sh scripts/bootstrap.sh --ci
+
+      - name: Start the platform
+        run: make up
+
+      - name: Smoke checks
+        run: make smoke
+
+      - name: Logs
+        if: failure()
+        run: docker compose logs --no-color --timestamps
+
+      - name: Remove the platform and its data
+        if: always()
+        run: make reset CONFIRM=yes
+
+  macos-tests:
+    # The CA and hosts scripts must also work with macOS's LibreSSL, BSD tools and /bin/sh.
+    name: macOS tests
+    runs-on: macos-latest
+    timeout-minutes: 10
+    env:
+      OPENSSL: /usr/bin/openssl # the system LibreSSL, not a Homebrew OpenSSL on PATH
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: CA tests
+        run: /bin/sh tests/ca.test.sh
+
+      - name: Hosts tests
+        run: /bin/sh tests/hosts.test.sh

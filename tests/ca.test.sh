@@ -2,6 +2,7 @@
 # Tests scripts/ca.sh in a temporary directory: the root's constraints, the leaf, that names outside
 # rsl-commerce.test are refused, idempotence, the reissue rules and file modes.
 # Runs anywhere scripts/ca.sh does, including macOS with LibreSSL (set OPENSSL to choose the binary).
+# shellcheck disable=SC2016 # sh -c programs below read their arguments as $1, $2
 set -eu
 cd "$(dirname "$0")/.."
 # shellcheck source=scripts/lib.sh
@@ -33,6 +34,7 @@ refuse() { # refuse <description> <command...>: passes when the command fails
 }
 text() { "$OPENSSL" x509 -noout -text -in "$1"; }
 hash_of() { cat "$@" | cksum; }
+# shellcheck disable=SC2012 # ls is the portable way to read a mode; stat differs between GNU and BSD
 mode_of() { ls -ld "$1" | cut -c1-10; }
 
 # sign_bad <name> <subjectAltName>: a leaf for a name the root must not vouch for, signed with its key.

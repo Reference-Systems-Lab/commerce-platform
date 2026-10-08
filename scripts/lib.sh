@@ -1,4 +1,5 @@
 # shellcheck shell=sh
+# shellcheck disable=SC2034 # the RSL_ variables are read by the scripts that source this file
 # Shared helpers, sourced by the other scripts after they cd to the repository root.
 # POSIX sh only: no `local`, no `pipefail`, no GNU-only flags, so it runs under dash and on macOS.
 
