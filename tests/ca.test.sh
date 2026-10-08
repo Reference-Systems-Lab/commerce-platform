@@ -37,13 +37,25 @@ hash_of() { cat "$@" | cksum; }
 # shellcheck disable=SC2012 # ls is the portable way to read a mode; stat differs between GNU and BSD
 mode_of() { ls -ld "$1" | cut -c1-10; }
 
-# sign_bad <name> <subjectAltName>: a leaf for a name the root must not vouch for, signed with its key.
+# sign_bad <name> <subjectAltName> [extendedKeyUsage] [ca-dir]: a leaf the root must not vouch for,
+# signed with the key in ca-dir (the platform's root by default).
 sign_bad() {
+  ca=${4:-$CA}
   "$OPENSSL" ecparam -name prime256v1 -genkey -noout -out "$T/$1.key"
-  printf '[req]\ndistinguished_name = dn\nprompt = no\n[dn]\nCN = %s\n[x]\nbasicConstraints = critical, CA:FALSE\nextendedKeyUsage = serverAuth\nsubjectAltName = %s\n' "$1" "$2" >"$T/$1.cnf"
+  printf '[req]\ndistinguished_name = dn\nprompt = no\n[dn]\nCN = %s\n[x]\nbasicConstraints = critical, CA:FALSE\nextendedKeyUsage = %s\nsubjectAltName = %s\n' "$1" "${3:-serverAuth}" "$2" >"$T/$1.cnf"
   "$OPENSSL" req -new -sha256 -key "$T/$1.key" -config "$T/$1.cnf" -out "$T/$1.csr"
-  "$OPENSSL" x509 -req -sha256 -in "$T/$1.csr" -CA "$CA/rootCA.pem" -CAkey "$CA/rootCA-key.pem" \
+  "$OPENSSL" x509 -req -sha256 -in "$T/$1.csr" -CA "$ca/rootCA.pem" -CAkey "$ca/rootCA-key.pem" \
     -set_serial 0x1234 -days 1 -extfile "$T/$1.cnf" -extensions x -out "$T/$1.pem" 2>/dev/null
+}
+
+# constraints <certificate text>: the name constraints, one "permitted <name>" or "excluded <name>" a line.
+constraints() {
+  printf '%s\n' "$1" | awk '
+    /Name Constraints/ { on = 1; next }
+    on && /Permitted:/ { part = "permitted"; next }
+    on && /Excluded:/ { part = "excluded"; next }
+    on && /X509v3|Signature|Authority/ { on = 0 }
+    on && part { gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print part " " $0 }'
 }
 
 echo "# create"
@@ -57,9 +69,13 @@ rt=$(text "$CA/rootCA.pem")
 check "root is a CA limited to one level" sh -c 'printf "%s" "$1" | grep -q "CA:TRUE, pathlen:0"' _ "$rt"
 check "root signs only certificates and CRLs" sh -c 'printf "%s" "$1" | grep -q "Certificate Sign, CRL Sign"' _ "$rt"
 check "name constraints are critical" sh -c 'printf "%s" "$1" | grep -q "Name Constraints: critical"' _ "$rt"
-check "permits only rsl-commerce.test" sh -c 'printf "%s" "$1" | grep -q "DNS:rsl-commerce.test"' _ "$rt"
-check "excludes every IPv4 address" sh -c 'printf "%s" "$1" | grep -q "IP:0.0.0.0/0.0.0.0"' _ "$rt"
-check "excludes every IPv6 address" sh -c 'printf "%s" "$1" | grep -Eq "IP:(0:){7}0/(0:){7}0|IP:::/::"' _ "$rt"
+nc=$(constraints "$rt")
+check "permits exactly one name, rsl-commerce.test" test "$(printf '%s\n' "$nc" | grep '^permitted ')" = "permitted DNS:$RSL_DOMAIN"
+check "excludes every IPv4 address" sh -c 'printf "%s\n" "$1" | grep -qx "excluded IP:0.0.0.0/0.0.0.0"' _ "$nc"
+check "excludes every IPv6 address" sh -c 'printf "%s\n" "$1" | grep -Eqx "excluded IP:((0:){7}0/(0:){7}0|::/::)"' _ "$nc"
+check "excludes nothing else" test "$(printf '%s\n' "$nc" | grep -c '^excluded ')" = 2
+check "root may issue TLS server certificates only" sh -c 'printf "%s" "$1" | grep -A1 "Extended Key Usage" | grep -qx " *TLS Web Server Authentication"' _ "$rt"
+check "root's name is unique to this machine and day" sh -c '"$1" x509 -noout -subject -in "$2" | grep -Eq "CN *= *rsl-commerce dev CA [^ ]+ [0-9]{8}"' _ "$OPENSSL" "$CA/rootCA.pem"
 check "root lasts at least 824 days" "$OPENSSL" x509 -checkend $((824 * 86400)) -noout -in "$CA/rootCA.pem"
 refuse "root lasts at most 825 days" "$OPENSSL" x509 -checkend $((826 * 86400)) -noout -in "$CA/rootCA.pem"
 
@@ -73,6 +89,10 @@ check "leaf is for TLS servers" sh -c 'printf "%s" "$1" | grep -q "TLS Web Serve
 check "leaf is not a CA" sh -c 'printf "%s" "$1" | grep -q "CA:FALSE"' _ "$lt"
 check "leaf verifies against the root" "$OPENSSL" verify -CAfile "$CA/rootCA.pem" "$LEAF/cert.pem"
 check "leaf lasts at most 397 days" sh -c '! "$1" x509 -checkend $((398 * 86400)) -noout -in "$2"' _ "$OPENSSL" "$LEAF/cert.pem"
+check "leaf lasts at least 396 days" "$OPENSSL" x509 -checkend $((396 * 86400)) -noout -in "$LEAF/cert.pem"
+check "leaf key is ECDSA P-256" sh -c 'printf "%s" "$1" | grep -Eq "prime256v1|P-256"' _ "$lt"
+days=$(cert_days_left "$LEAF/cert.pem")
+check "cert_days_left counts 396 or 397 days" test "$days" -ge 396 -a "$days" -le 397
 
 echo "# the root refuses other names"
 sign_bad other "DNS:www.example.com"
@@ -85,6 +105,9 @@ refuse "rejects localhost" "$OPENSSL" verify -CAfile "$CA/rootCA.pem" "$T/localh
 refuse "rejects an IPv4 address" "$OPENSSL" verify -CAfile "$CA/rootCA.pem" "$T/ipv4.pem"
 refuse "rejects an IPv6 address" "$OPENSSL" verify -CAfile "$CA/rootCA.pem" "$T/ipv6.pem"
 refuse "rejects a permitted name smuggling an IP" "$OPENSSL" verify -CAfile "$CA/rootCA.pem" "$T/mixed.pem"
+sign_bad email "DNS:$RSL_DOMAIN, email:dev@$RSL_DOMAIN" "emailProtection, codeSigning, clientAuth"
+refuse "rejects a leaf for signing email" "$OPENSSL" verify -purpose smimesign -CAfile "$CA/rootCA.pem" "$T/email.pem"
+check "accepts the real leaf for TLS servers" "$OPENSSL" verify -purpose sslserver -CAfile "$CA/rootCA.pem" "$LEAF/cert.pem"
 
 echo "# modes"
 check "ca directory is 700" test "$(mode_of "$CA")" = drwx------
@@ -113,6 +136,16 @@ reissued "missing key"
 reissued "key that doesn't match"
 cp "$T/other.pem" "$LEAF/cert.pem"
 reissued "certificate for other hosts"
+# The right hosts and a matching key, but signed by some other root.
+mkdir -p "$T/stranger"
+"$OPENSSL" ecparam -name prime256v1 -genkey -noout -out "$T/stranger/rootCA-key.pem"
+printf '[req]\ndistinguished_name = dn\nprompt = no\nx509_extensions = v\n[dn]\nCN = stranger\n[v]\nbasicConstraints = critical, CA:TRUE\nkeyUsage = critical, keyCertSign\n' >"$T/stranger/root.cnf"
+"$OPENSSL" req -x509 -new -sha256 -key "$T/stranger/rootCA-key.pem" -days 1 -set_serial 0x99 -config "$T/stranger/root.cnf" -out "$T/stranger/rootCA.pem"
+# shellcheck disable=SC2086 # split the host list on purpose
+sign_bad stranger-leaf "$(printf 'DNS:%s\n' $RSL_HOSTS | paste -sd, -)" serverAuth "$T/stranger"
+cp "$T/stranger-leaf.pem" "$LEAF/cert.pem"
+cp "$T/stranger-leaf.key" "$LEAF/key.pem"
+reissued "certificate from another root"
 rm "$LEAF/cert.pem"
 RSL_LEAF_DAYS=10 sh scripts/ca.sh >/dev/null
 refuse "test setup: the leaf now expires within 30 days" "$OPENSSL" x509 -checkend $((30 * 86400)) -noout -in "$LEAF/cert.pem"

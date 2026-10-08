@@ -59,6 +59,9 @@ create_root() {
   mkdir -p "$CA_DIR"
   chmod 700 "$CA_DIR"
   run "$OPENSSL" ecparam -name prime256v1 -genkey -noout -out "$tmp/root-key.pem"
+  # The machine's short name, cut to fit: a common name may hold only 64 characters. The root may issue
+  # TLS server certificates only (extendedKeyUsage), so its key could never sign code or email that
+  # Windows, NSS or OpenSSL would accept.
   cat >"$tmp/root.cnf" <<EOF
 [req]
 distinguished_name = dn
@@ -67,11 +70,12 @@ x509_extensions = v3_ca
 
 [dn]
 O = $RSL_ROOT_O
-CN = $RSL_ROOT_CN $(uname -n) $(date +%Y%m%d)
+CN = $RSL_ROOT_CN $(uname -n | cut -d. -f1 | cut -c1-24) $(date +%Y%m%d)
 
 [v3_ca]
 basicConstraints = critical, CA:TRUE, pathlen:0
 keyUsage = critical, keyCertSign, cRLSign
+extendedKeyUsage = serverAuth
 subjectKeyIdentifier = hash
 nameConstraints = critical, permitted;DNS:$RSL_DOMAIN, excluded;IP:0.0.0.0/0.0.0.0, excluded;IP:0:0:0:0:0:0:0:0/0:0:0:0:0:0:0:0
 EOF
