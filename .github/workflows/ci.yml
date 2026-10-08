@@ -80,3 +80,66 @@ jobs:
 
       - name: Hosts tests
         run: /bin/sh tests/hosts.test.sh
+
+  linux-bootstrap:
+    # The developer flow on a real Linux machine: make trust and make hosts with sudo, the system trust
+    # store, an NSS database, and /etc/hosts. Smoke skips all of that (bootstrap --ci).
+    name: Linux bootstrap
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: certutil, and a Chrome NSS database for make trust to fill
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libnss3-tools
+          mkdir -p ~/.pki/nssdb
+          certutil -N --empty-password -d "sql:$HOME/.pki/nssdb"
+
+      - name: make bootstrap
+        run: make bootstrap
+
+      - name: make hosts
+        run: make hosts
+
+      - name: make up
+        run: make up
+
+      - name: Reach the platform by name, trusting only the system store
+        run: |
+          sh scripts/trust.sh check
+          curl -fsS -o /dev/null https://rsl-commerce.test/
+          curl -fsS -o /dev/null https://mail.rsl-commerce.test/
+          certutil -L -d "sql:$HOME/.pki/nssdb" | grep 'rsl-commerce dev CA'
+          make status
+          make doctor
+
+      - name: A second bootstrap and hosts change nothing
+        run: |
+          files=".env secrets/postgres_password secrets/valkey.conf certs/ca/rootCA.pem certs/leaf/cert.pem /etc/hosts"
+          before=$(sha256sum $files)
+          make bootstrap
+          make hosts
+          [ "$before" = "$(sha256sum $files)" ]
+
+      - name: make untrust removes it everywhere
+        run: |
+          make untrust
+          ! sh scripts/trust.sh check
+          [ ! -e /usr/local/share/ca-certificates/rsl-commerce-dev-ca.crt ]
+          ! certutil -L -d "sql:$HOME/.pki/nssdb" | grep 'rsl-commerce dev CA'
+          # The system bundle no longer vouches for the platform: curl must now refuse the certificate.
+          code=0; curl -sS -o /dev/null https://rsl-commerce.test/ || code=$?
+          [ "$code" = 60 ]
+
+      - name: Logs
+        if: failure()
+        run: docker compose logs --no-color --timestamps
+
+      - name: Remove the platform and its data
+        if: always()
+        run: make reset CONFIRM=yes
