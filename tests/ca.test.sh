@@ -58,6 +58,7 @@ constraints() {
     on && part { gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print part " " $0 }'
 }
 
+echo "# using $("$OPENSSL" version)"
 echo "# create"
 out=$(sh scripts/ca.sh)
 check "creates the root" test -f "$CA/rootCA.pem"
@@ -106,7 +107,12 @@ refuse "rejects an IPv4 address" "$OPENSSL" verify -CAfile "$CA/rootCA.pem" "$T/
 refuse "rejects an IPv6 address" "$OPENSSL" verify -CAfile "$CA/rootCA.pem" "$T/ipv6.pem"
 refuse "rejects a permitted name smuggling an IP" "$OPENSSL" verify -CAfile "$CA/rootCA.pem" "$T/mixed.pem"
 sign_bad email "DNS:$RSL_DOMAIN, email:dev@$RSL_DOMAIN" "emailProtection, codeSigning, clientAuth"
-refuse "rejects a leaf for signing email" "$OPENSSL" verify -purpose smimesign -CAfile "$CA/rootCA.pem" "$T/email.pem"
+# LibreSSL before 3.8 (macOS ships 3.3) ignores a CA's extendedKeyUsage when checking a purpose, so there
+# the refusal can't be observed; the root's own usage limit is still checked above.
+case $("$OPENSSL" version) in
+  "LibreSSL 2."* | "LibreSSL 3."[0-7].*) printf 'skip  rejects a leaf for signing email (this LibreSSL ignores a CA'"'"'s usage limit)\n' ;;
+  *) refuse "rejects a leaf for signing email" "$OPENSSL" verify -purpose smimesign -CAfile "$CA/rootCA.pem" "$T/email.pem" ;;
+esac
 check "accepts the real leaf for TLS servers" "$OPENSSL" verify -purpose sslserver -CAfile "$CA/rootCA.pem" "$LEAF/cert.pem"
 
 echo "# modes"
