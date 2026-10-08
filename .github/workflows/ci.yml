@@ -70,6 +70,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Every script parses under /bin/sh, and make runs (GNU Make 3.81)
+        run: |
+          for f in scripts/*.sh tests/*.sh .githooks/*; do /bin/sh -n "$f"; done
+          make help
+
       - name: CA tests
         run: /bin/sh tests/ca.test.sh
 
