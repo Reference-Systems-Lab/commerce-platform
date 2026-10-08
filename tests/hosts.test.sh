@@ -144,6 +144,21 @@ refuse "mixed: --check fails on the result while the conflict remains" report "$
 case $out in *"missing:"*"design.$RSL_DOMAIN"*) pass "mixed: a commented-out line doesn't count" ;; *) flunk "mixed: a commented-out line doesn't count" ;; esac
 case $out in *"missing:"*"admin."*) flunk "mixed: names match case-insensitively" ;; *) pass "mixed: names match case-insensitively" ;; esac
 
+echo "# a wrong address inside the block is rewritten, not reported as someone else's line"
+{
+  printf '127.0.0.1 localhost\n'
+  printf '# BEGIN rsl-commerce\n10.0.0.9 api.%s\n# END rsl-commerce\n' "$RSL_DOMAIN"
+} >"$T/inblock"
+{
+  printf '127.0.0.1 localhost\n'
+  # shellcheck disable=SC2046
+  block lf $(all)
+} >"$T/inblock.want"
+expect inblock
+out=$(report "$T/inblock" || true)
+case $out in *"missing:"*"api.$RSL_DOMAIN"*) pass "inblock: --check lists it as missing" ;; *) flunk "inblock: --check lists it as missing" ;; esac
+case $out in *"points at"*) flunk "inblock: no conflict reported" ;; *) pass "inblock: no conflict reported" ;; esac
+
 echo "# nothing missing"
 all | sed 's/^/127.0.0.1 /' >"$T/complete"
 cp "$T/complete" "$T/complete.want"

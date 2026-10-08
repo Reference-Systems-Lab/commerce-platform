@@ -72,7 +72,8 @@ BEGIN {
     name = tolower(field[i])
     if (!(name in wanted)) continue
     if (field[1] == ip) mapped[name] = 1
-    else conflict[name] = conflict[name] " " field[1]
+    else if (!begin || end) conflict[name] = conflict[name] " " field[1]
+    # A wrong address inside the block counts as missing, so make hosts rewrites it.
     if (!begin || end) outside[name] = 1
   }
 }
@@ -170,6 +171,8 @@ diff -u "$tmp/base.txt" "$tmp/new.txt" | sed '1,2d' || true
 PS_ELEVATED=$(
   cat <<'EOF'
 $ErrorActionPreference = 'Stop'
+# Elevated code loads no modules: a module folder the user can write could otherwise supply a command.
+$PSModuleAutoLoadingPreference = 'None'
 $hosts = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('@HOSTS@'))
 $staged = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('@STAGED@'))
 $sha = [Security.Cryptography.SHA256]::Create()
@@ -179,9 +182,9 @@ if ((Hex $new) -ne '@STAGED_SHA@') { exit 4 }
 $old = [IO.File]::ReadAllBytes($hosts)
 if ((Hex $old) -ne '@BASE_SHA@') { exit 3 }
 $backup = $hosts + '.rsl-commerce.bak'
-if (-not (Test-Path -LiteralPath $backup)) { [IO.File]::WriteAllBytes($backup, $old) }
+if (-not [IO.File]::Exists($backup)) { [IO.File]::WriteAllBytes($backup, $old) }
 [IO.File]::WriteAllBytes($hosts, $new)
-try { Clear-DnsClientCache } catch { }
+& ($env:SystemRoot + '\System32\ipconfig.exe') /flushdns > $null
 exit 0
 EOF
 )
@@ -199,6 +202,8 @@ EOF
 
 wsl_apply() {
   # Stage the new file in Windows' temp folder, so the elevated process reads it from a Windows path.
+  # The expected hash is of the content shown in the diff, not of the staged file: anything that swaps
+  # the staged file before the elevated process reads it makes the write refuse.
   # The path comes back base64-encoded, because the console would mangle any non-ASCII characters.
   staged_b64=$(powershell '[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([IO.Path]::GetTempFileName()))')
   staged=$(wslpath -u "$(printf '%s' "$staged_b64" | base64 -d)")
@@ -207,7 +212,7 @@ wsl_apply() {
     -e "s|@HOSTS@|$(printf '%s' "$WIN_HOSTS" | base64 -w0)|" \
     -e "s|@STAGED@|$staged_b64|" \
     -e "s|@BASE_SHA@|$(sha256 "$tmp/base")|" \
-    -e "s|@STAGED_SHA@|$(sha256 "$staged")|")
+    -e "s|@STAGED_SHA@|$(sha256 "$tmp/new")|")
   info "Windows asks for administrator approval (UAC) once, to write the hosts file."
   result=$(powershell "$PS_ELEVATE" RSL_ELEVATED="$(printf '%s' "$script" | iconv -f UTF-8 -t UTF-16LE | base64 -w0)")
   rm -f "$staged"
