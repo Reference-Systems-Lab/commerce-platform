@@ -14,9 +14,6 @@ chmod 600 .env
 # rand <bytes>: hex from /dev/urandom. POSIX tools only, so it needs no openssl.
 rand() { od -An -tx1 -N"$1" /dev/urandom | tr -d ' \n'; }
 
-# get <key>: the value of key in .env, or nothing.
-get() { sed -n "s/^$1=//p" .env | tail -n 1; }
-
 # put <key> <value>: replace key's line in .env (or append it), keeping every other line.
 put() {
   grep -v "^$1=" .env >.env.tmp || true
@@ -27,7 +24,7 @@ put() {
 # generate <key> <bytes> [volume]: fill key when empty. A credential that a service stores in its volume
 # on first start (Postgres, RabbitMQ) can't change while that volume exists, so refuse instead.
 generate() {
-  if [ -n "$(get "$1")" ]; then
+  if [ -n "$(env_get "$1")" ]; then
     echo "kept $1"
     return 0
   fi
@@ -52,7 +49,7 @@ done
 # stays inside the gitignored secrets/ directory on this machine.
 mkdir -p secrets
 chmod 755 secrets
-pw=$(get POSTGRES_PASSWORD)
+pw=$(env_get POSTGRES_PASSWORD)
 if [ "$(cat secrets/postgres_password 2>/dev/null || true)" != "$pw" ]; then
   printf '%s' "$pw" >secrets/postgres_password.tmp
   chmod 644 secrets/postgres_password.tmp

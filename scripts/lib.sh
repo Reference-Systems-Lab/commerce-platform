@@ -44,3 +44,8 @@ platform_os() {
 volume_exists() {
   docker volume inspect "$1" >/dev/null 2>&1
 }
+
+# env_get <key>: the value of key in .env, or nothing.
+env_get() {
+  sed -n "s/^$1=//p" .env 2>/dev/null | tail -n 1
+}

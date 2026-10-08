@@ -2,7 +2,7 @@
 # line lives in scripts/ as POSIX sh, so each command behaves the same on WSL2, macOS and Linux.
 
 .DEFAULT_GOAL := help
-.PHONY: help up down reset logs
+.PHONY: help up down reset logs smoke
 
 # Stopping creates nothing, so it needs no credentials. The placeholders let Compose read compose.yaml
 # when .env is missing or incomplete; without them `make reset` fails in exactly the case bootstrap
@@ -31,3 +31,6 @@ reset: ## Stop the platform and delete its data; keeps .env, secrets/ and certs/
 
 logs: ## Follow the logs (s=<service> for one service)
 	docker compose logs --follow $(s)
+
+smoke: ## Check the running platform end to end
+	@sh ./scripts/smoke.sh
