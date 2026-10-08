@@ -1,2 +1,10 @@
 # Agent working files such as worklog ledgers; the record lives in GitHub issues.
 .agent/
+
+# Generated per machine by `make bootstrap`. Never commit them: they hold local secrets and keys.
+.env
+secrets/
+certs/
+
+# Tools fetched or cached by the scripts.
+.tools/
