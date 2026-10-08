@@ -5,6 +5,9 @@
 # Every container is hardened the same way (DE-5): a numeric non-root user, a read-only root filesystem,
 # no Linux capabilities, no privilege escalation and an init process. Every image is pinned by digest;
 # Dependabot keeps the pins current (.github/dependabot.yml).
+#
+# Two networks: edge, where the proxy reaches the web UIs, and data (internal: no route out), where the
+# applications will reach the infrastructure. The proxy can't reach any data service.
 name: rsl-commerce
 
 x-hardened: &hardened
@@ -25,6 +28,7 @@ services:
     ports:
       - "127.0.0.1:80:80"
       - "127.0.0.1:443:443"
+    networks: [edge]
     volumes:
       # create_host_path: false, so a missing directory is an error instead of a root-owned empty one.
       - { type: bind, source: ./proxy/conf.d, target: /etc/nginx/conf.d, read_only: true, bind: { create_host_path: false } }
@@ -48,6 +52,7 @@ services:
       POSTGRES_DB: commerce
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
     secrets: [postgres_password]
+    networks: [data]
     volumes:
       - postgres:/var/lib/postgresql
     tmpfs: ["/tmp:size=64m", "/var/run/postgresql:uid=999,gid=999,size=1m"]
@@ -61,17 +66,21 @@ services:
       start_period: 60s
       start_interval: 1s
 
-  # Redis-compatible cache, rate limits and locks (DE-12). Reachable only inside the Compose network.
+  # Redis-compatible cache, rate limits and locks (DE-12). Requires the generated password (D-13), read
+  # from a secret file so it never appears on a command line.
   valkey:
     <<: *hardened
     image: valkey/valkey:9.1.2-trixie@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
     user: "999:999"
+    command: ["valkey-server", "/run/secrets/valkey_config"]
     environment:
       TINI_SUBREAPER: "1" # the image's own tini runs under Docker's init; this lets it reap as intended
+    secrets: [valkey_config]
+    networks: [data]
     volumes:
       - valkey:/data
     healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
+      test: ["CMD-SHELL", "VALKEYCLI_AUTH=\"$$(sed -n 's/^requirepass //p' /run/secrets/valkey_config)\" valkey-cli ping | grep -qx PONG"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -90,6 +99,8 @@ services:
       ERL_CRASH_DUMP: /var/lib/rabbitmq/erl_crash.dump # the root filesystem is read-only; keep a crash dump
     ports:
       - "127.0.0.1:15672:15672" # management UI, for developers only
+    # rabbitmq-ui exists only so the management port can be published: an internal network can't.
+    networks: [data, rabbitmq-ui]
     volumes:
       - rabbitmq:/var/lib/rabbitmq
       - { type: bind, source: ./config/rabbitmq/20-commerce.conf, target: /etc/rabbitmq/conf.d/20-commerce.conf, read_only: true, bind: { create_host_path: false } }
@@ -113,6 +124,7 @@ services:
       MP_DATABASE: /data/mailpit.db
       # Mailpit refuses other Host headers (DNS-rebinding protection). The proxy forwards the original Host.
       MP_ALLOWED_HOSTS: mail.rsl-commerce.test,mailpit
+    networks: [edge, data] # the UI for the proxy; SMTP for the applications
     volumes:
       - mailpit:/data
     healthcheck:
@@ -134,6 +146,7 @@ services:
       MEILI_NO_ANALYTICS: "true"
       TINI_SUBREAPER: "1" # as for valkey
     tmpfs: ["/tmp:size=512m"] # indexing writes its sort files here
+    networks: [data]
     volumes:
       - meilisearch:/meili_data
     healthcheck:
@@ -149,6 +162,15 @@ secrets:
     # File-sourced: Compose refuses secrets from the environment in a read-only service. Written by
     # scripts/gen-env.sh from .env.
     file: ./secrets/postgres_password
+  valkey_config:
+    # A one-line Valkey config, "requirepass <VALKEY_PASSWORD>", written by scripts/gen-env.sh.
+    file: ./secrets/valkey.conf
+
+networks:
+  edge: {}
+  data:
+    internal: true
+  rabbitmq-ui: {}
 
 volumes:
   postgres: {}

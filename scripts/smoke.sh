@@ -109,8 +109,11 @@ case $refused in *"password authentication failed"*) refused=refused ;; esac
 want "wrong password" refused "$refused"
 check "Postgres: a wrong password is refused"
 
-want ping PONG "$(docker compose exec -T valkey valkey-cli -h valkey ping 2>&1 || true)"
-check "Valkey: valkey-cli -h valkey ping"
+# shellcheck disable=SC2016 # expanded by the container's shell, so the password stays off the command line
+want "with the password" PONG "$(docker compose exec -T valkey sh -c \
+  'VALKEYCLI_AUTH="$(sed -n "s/^requirepass //p" /run/secrets/valkey_config)" valkey-cli -h valkey ping' 2>&1 || true)"
+want "without it" "NOAUTH Authentication required." "$(docker compose exec -T valkey valkey-cli -h valkey ping 2>&1 || true)"
+check "Valkey: valkey-cli -h valkey answers only with the password"
 
 # rabbit <curl args...>: the management API as commerce. The password goes in on stdin, not the command line.
 rabbit() {
@@ -183,6 +186,14 @@ done
 want ports "127.0.0.1:15672 127.0.0.1:443 127.0.0.1:80" \
   "$(for container in $(docker compose ps --quiet); do docker port "$container"; done | sed 's/.* -> //' | sort | paste -sd' ' -)"
 check "Published ports: only 127.0.0.1 80, 443 and 15672"
+want "data is internal" true "$(docker network inspect "${RSL_PROJECT}_data" --format '{{.Internal}}' 2>&1 || true)"
+for service in postgres valkey rabbitmq meilisearch; do
+  case $(docker compose exec -T proxy wget -q -T 2 -O /dev/null "http://$service/" 2>&1 || true) in
+    *"bad address"*) ;;
+    *) problems="$problems${problems:+; }the proxy can resolve $service" ;;
+  esac
+done
+check "Networks: data is internal, and the proxy can't reach postgres, valkey, rabbitmq or meilisearch"
 
 info "Data"
 sql "CREATE TABLE IF NOT EXISTS smoke_persistence (marker text); INSERT INTO smoke_persistence VALUES ('$marker')" \

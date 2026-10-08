@@ -64,10 +64,11 @@ to run again at any time: it keeps your secrets and certificates and asks for no
 | `make trust`, `make untrust` | Trusts the root certificate, or removes every root this platform created |
 | `make hosts` | Adds the missing local addresses to the hosts file |
 
-The services, from inside the Compose network: `postgres:5432` (user and database `commerce`),
-`valkey:6379`, `rabbitmq:5672`, `mailpit:1025` for SMTP, and `meilisearch:7700`. The passwords and
-the Meilisearch key are generated into `.env`. RabbitMQ's management UI is at
-<http://127.0.0.1:15672>.
+The services, on the internal `data` network: `postgres:5432` (user and database `commerce`),
+`valkey:6379`, `rabbitmq:5672`, `mailpit:1025` for SMTP, and `meilisearch:7700`. Each needs its
+credential, generated into `.env`: `POSTGRES_PASSWORD`, `VALKEY_PASSWORD`, `RABBITMQ_PASSWORD` (user
+`commerce`) and `MEILI_MASTER_KEY`. The proxy sits on a separate `edge` network and can't reach
+them. RabbitMQ's management UI is at <http://127.0.0.1:15672>.
 
 ## What asks for permission
 

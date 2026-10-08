@@ -20,7 +20,7 @@ prohibit 'github_pat_[A-Za-z0-9_]{22,}'              # GitHub fine-grained token
 prohibit 'rsldev_[0-9a-f]{32,}'                      # Values that scripts/gen-env.sh generates
 # Filled credentials as KEY=value or KEY: value, quoted or not. Empty values, ${...} references and short
 # placeholders (the Makefile's "unused") pass.
-prohibit "(POSTGRES_PASSWORD|RABBITMQ_PASSWORD|MEILI_MASTER_KEY)[[:blank:]]*[=:][[:blank:]]*[\"']?[^\$[:space:]\"']{8,}"
+prohibit "(POSTGRES_PASSWORD|RABBITMQ_PASSWORD|MEILI_MASTER_KEY|VALKEY_PASSWORD)[[:blank:]]*[=:][[:blank:]]*[\"']?[^\$[:space:]\"']{8,}"
 prohibit "AUTHORIZE_NET_(API_LOGIN_ID|TRANSACTION_KEY|SIGNATURE_KEY)[[:blank:]]*[=:][[:blank:]]*[\"']?[A-Za-z0-9]{8,}"
 
 echo "Git hooks on: git-secrets now scans every commit in this clone."

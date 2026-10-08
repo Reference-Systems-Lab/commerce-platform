@@ -39,6 +39,7 @@ generate() {
 generate POSTGRES_PASSWORD 24 "${RSL_PROJECT}_postgres"
 generate RABBITMQ_PASSWORD 24 "${RSL_PROJECT}_rabbitmq"
 generate MEILI_MASTER_KEY 32
+generate VALKEY_PASSWORD 24 # Valkey keeps no password in its volume, so no guard
 
 # Every other key in .env.example is optional and never generated: add it empty so .env lists it. A
 # hand-edited .env may lack its final newline; add one first, so an added key starts its own line.
@@ -47,15 +48,21 @@ sed -n 's/^\([A-Z][A-Z0-9_]*\)=.*/\1/p' .env.example | while read -r key; do
   grep -q "^$key=" .env || printf '%s=\n' "$key" >>.env
 done
 
-# Postgres reads its password from a file-sourced Compose secret. Compose ignores uid, gid and mode for
-# file secrets (they are bind mounts), so the file is world-readable for the container's uid 999. It
-# stays inside the gitignored secrets/ directory on this machine.
+# Postgres and Valkey read their passwords from file-sourced Compose secrets, so no password appears in
+# an environment variable or on a command line. Compose ignores uid, gid and mode for file secrets (they
+# are bind mounts), so the files are world-readable for the containers' uid 999. They stay inside the
+# gitignored secrets/ directory on this machine.
 mkdir -p secrets
 chmod 755 secrets
-pw=$(env_get POSTGRES_PASSWORD)
-if [ "$(cat secrets/postgres_password 2>/dev/null || true)" != "$pw" ]; then
-  printf '%s' "$pw" >secrets/postgres_password.tmp
-  chmod 644 secrets/postgres_password.tmp
-  mv secrets/postgres_password.tmp secrets/postgres_password
-  echo "wrote secrets/postgres_password"
-fi
+
+# write_secret <file> <content>: replace secrets/<file> when its content differs.
+write_secret() {
+  if [ "$(cat "secrets/$1" 2>/dev/null || true)" != "$2" ]; then
+    printf '%s' "$2" >"secrets/$1.tmp"
+    chmod 644 "secrets/$1.tmp"
+    mv "secrets/$1.tmp" "secrets/$1"
+    echo "wrote secrets/$1"
+  fi
+}
+write_secret postgres_password "$(env_get POSTGRES_PASSWORD)"
+write_secret valkey.conf "requirepass $(env_get VALKEY_PASSWORD)"

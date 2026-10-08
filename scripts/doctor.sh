@@ -156,7 +156,7 @@ else
     grep -q "^$key=" .env || printf ' %s' "$key"
   done)
   empty_keys=
-  for key in POSTGRES_PASSWORD RABBITMQ_PASSWORD MEILI_MASTER_KEY; do
+  for key in POSTGRES_PASSWORD RABBITMQ_PASSWORD MEILI_MASTER_KEY VALKEY_PASSWORD; do
     [ -n "$(env_get "$key")" ] || empty_keys="$empty_keys $key"
   done
   if [ -n "$empty_keys" ]; then
@@ -166,10 +166,11 @@ else
   else
     ok ".env is complete"
   fi
-  if [ "$(cat secrets/postgres_password 2>/dev/null || true)" = "$(env_get POSTGRES_PASSWORD)" ]; then
-    ok "secrets/postgres_password matches .env"
+  if [ "$(cat secrets/postgres_password 2>/dev/null || true)" = "$(env_get POSTGRES_PASSWORD)" ] &&
+    [ "$(cat secrets/valkey.conf 2>/dev/null || true)" = "requirepass $(env_get VALKEY_PASSWORD)" ]; then
+    ok "the secret files match .env"
   else
-    bad "secrets/postgres_password is missing or differs from .env. Run 'make bootstrap'."
+    bad "secrets/postgres_password or secrets/valkey.conf is missing or differs from .env. Run 'make bootstrap'."
   fi
 fi
 

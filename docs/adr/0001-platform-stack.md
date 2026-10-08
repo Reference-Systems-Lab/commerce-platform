@@ -38,12 +38,17 @@ both, including where the build had to differ from the spike.
   byte (and the line endings) alone.
 - **Secrets.** `make bootstrap` generates every credential as `rsldev_<hex>` into a mode-600 `.env`
   (P-D5), keeps them on every rerun, and refuses to replace one a data volume still holds. Postgres
-  reads its password from a file-sourced Compose secret.
+  and Valkey read theirs from file-sourced Compose secrets, never from a command line.
 - **Services.** PostgreSQL 18, Valkey 9.1 instead of Redis, RabbitMQ 4.3 with quorum queues by
   default, Mailpit and Meilisearch (the MIT community build) (P-D7). Every container runs as a
   numeric non-root user, read-only, with no capabilities, `no-new-privileges` and `init`. Mailpit
   and Meilisearch are two-line derived images, built locally and never pulled by name. Only
-  `127.0.0.1` ports 80, 443 and 15672 are published.
+  `127.0.0.1` ports 80, 443 and 15672 are published. Every service needs a credential, Valkey
+  included (D-13).
+- **Networks (D-13).** `edge` holds the proxy and Mailpit's UI. `data` is internal (no route out) and
+  holds Postgres, Valkey, RabbitMQ, Meilisearch and Mailpit's SMTP, so the proxy can't reach any data
+  service. RabbitMQ also joins a small `rabbitmq-ui` network, only because an internal network can't
+  publish its management port.
 - **Pins and checks.** Every image, base image and action is pinned by digest or commit SHA, and
   Dependabot updates them after a 7-day cooldown, holding nginx to its stable line and Postgres to
   major 18. `make lint` and `make smoke` are what CI runs.
@@ -84,6 +89,9 @@ both, including where the build had to differ from the spike.
 - **An environment-sourced secret, or a root-owned key readable by group.** Compose refuses the
   first for read-only services; the second needs `chown` to the containers' users, which means root
   on the host.
+- **Valkey without a password on one shared network** (the spike's choice). Anything that joins the
+  project network, a frontend or a compromised proxy, could then read and rewrite the cache, rate
+  limits and locks, while every other service needed a credential.
 - **A long HSTS policy.** A cached policy turns any later certificate problem into an error the
   browser won't let you click through.
 
@@ -102,4 +110,6 @@ both, including where the build had to differ from the spike.
 - The trust and hosts paths for macOS and Linux are written and linted but not yet run on those
   systems; CI runs the CA and hosts tests on macOS.
 - Each application that joins the stack replaces its 503 server block with its own route, and
-  declares its own infrastructure needs; the platform provisions them.
+  declares its own infrastructure needs; the platform provisions them. A service that uses the
+  infrastructure joins `data` (and `edge` if the proxy routes to it), and connects to Valkey with
+  `VALKEY_PASSWORD`; a frontend joins only `edge`.

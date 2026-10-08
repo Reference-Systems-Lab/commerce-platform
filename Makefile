@@ -17,7 +17,7 @@ bootstrap: ## Prepare this machine: secrets, certificates, trust; safe to run ag
 	@sh ./scripts/bootstrap.sh
 
 up: ## Start the platform and wait until every service is healthy
-	@for f in .env secrets/postgres_password certs/leaf/cert.pem certs/leaf/key.pem; do \
+	@for f in .env secrets/postgres_password secrets/valkey.conf certs/leaf/cert.pem certs/leaf/key.pem; do \
 		[ -f "$$f" ] || { echo "error: $$f is missing. Run 'make bootstrap' first." >&2; exit 1; }; \
 	done
 	docker compose up --detach --wait
