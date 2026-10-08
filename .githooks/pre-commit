@@ -1,4 +1,5 @@
 #!/bin/sh
 # Scans the staged files for secrets.
+# shellcheck source=.githooks/require-git-secrets.sh
 . "$(dirname "$0")/require-git-secrets.sh"
 exec git secrets --pre_commit_hook -- "$@"

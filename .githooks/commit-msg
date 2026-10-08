@@ -1,4 +1,5 @@
 #!/bin/sh
 # Scans the commit message for secrets.
+# shellcheck source=.githooks/require-git-secrets.sh
 . "$(dirname "$0")/require-git-secrets.sh"
 exec git secrets --commit_msg_hook -- "$@"

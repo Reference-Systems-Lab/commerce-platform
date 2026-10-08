@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>commerce: the local platform is running</title>
+    <link rel="stylesheet" href="/site.css">
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">rsl-commerce.test</p>
+      <h1>The local platform is running</h1>
+      <p>
+        This page comes from the platform's proxy, over local TLS. The storefront takes this address
+        when it joins the stack.
+      </p>
+      <h2>Running now</h2>
+      <ul>
+        <li>The proxy and local TLS for every <code>rsl-commerce.test</code> address</li>
+        <li>PostgreSQL, Valkey, RabbitMQ and Meilisearch</li>
+        <li><a href="https://mail.rsl-commerce.test/">Mailpit</a>, which catches every email the platform sends</li>
+      </ul>
+      <p>Run <code>make status</code> in the platform repository to see each service's health.</p>
+    </main>
+  </body>
+</html>

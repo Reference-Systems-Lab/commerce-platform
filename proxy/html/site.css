@@ -1,0 +1,56 @@
+:root {
+  color-scheme: light dark;
+  --text: #1c1d21;
+  --muted: #5b5e66;
+  --accent: #2f5bd3;
+  --surface: #f6f7f9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e8e9ec;
+    --muted: #a3a6ad;
+    --accent: #8aa8ff;
+    --surface: #16171a;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  font: 1rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 4rem 1.25rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0.25rem 0 1rem;
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+h2 {
+  margin-top: 2rem;
+  font-size: 1.125rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+code {
+  font: 0.9em ui-monospace, "Cascadia Mono", Menlo, monospace;
+}
