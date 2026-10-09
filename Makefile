@@ -10,6 +10,12 @@
 # scripts/status.sh uses the same placeholders.
 COMPOSE_NO_CREATE = RABBITMQ_PASSWORD=unused MEILI_MASTER_KEY=unused docker compose
 
+# Stopping must also work when Compose can't read the project: offline on a fresh clone, before the
+# applications' fragments have been fetched from GitHub (ADR 0002). Then it acts on the project by name.
+COMPOSE_STOP = if $(COMPOSE_NO_CREATE) config --quiet 2>/dev/null; then $(COMPOSE_NO_CREATE) $(1); \
+	else echo "Compose can't read the project (offline?); acting on rsl-commerce by name." >&2; \
+	docker compose --project-name rsl-commerce $(1); fi
+
 help: ## List the commands
 	@grep -E '^[a-z][a-z-]*:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN { FS = ":.*## " } { printf "  %-10s %s\n", $$1, $$2 }'
 
@@ -20,10 +26,10 @@ up: ## Start the platform and wait until every service is healthy (LOCAL=backend
 	@LOCAL="$(LOCAL)" sh ./scripts/up.sh
 
 seed: ## Add the development data (the backend's products); safe to run again, and never run by up
-	docker compose run --rm --no-deps backend-api seed
+	@LOCAL="$(LOCAL)" sh ./scripts/seed.sh
 
 down: ## Stop the platform and keep its data
-	@$(COMPOSE_NO_CREATE) down
+	@$(call COMPOSE_STOP,down)
 
 reset: ## Stop the platform and delete its data; keeps .env, secrets/ and certs/ (CONFIRM=yes skips the question)
 	@if [ "$(CONFIRM)" != yes ]; then \
@@ -31,7 +37,7 @@ reset: ## Stop the platform and delete its data; keeps .env, secrets/ and certs/
 		read -r answer; \
 		[ "$$answer" = yes ] || { echo 'Cancelled. Nothing was deleted.'; exit 1; }; \
 	fi
-	@$(COMPOSE_NO_CREATE) down --volumes --remove-orphans
+	@$(call COMPOSE_STOP,down --volumes --remove-orphans)
 
 logs: ## Follow the logs (s=<service> for one service)
 	@$(COMPOSE_NO_CREATE) logs --follow $(s)

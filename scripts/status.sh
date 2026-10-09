@@ -14,8 +14,9 @@ elif ! docker info >/dev/null 2>&1; then
   warn "Docker isn't running."
 else
   # Placeholder credentials, as in the Makefile: listing creates nothing, and must work with an incomplete .env.
-  services=$(RABBITMQ_PASSWORD=unused MEILI_MASTER_KEY=unused docker compose ps --all --format '{{.Service}} {{.ID}}')
-  if [ -z "$services" ]; then
+  if ! services=$(RABBITMQ_PASSWORD=unused MEILI_MASTER_KEY=unused docker compose ps --all --format '{{.Service}} {{.ID}}' 2>&1); then
+    warn "Compose couldn't read the project: $(printf '%s' "$services" | tail -n 1)"
+  elif [ -z "$services" ]; then
     warn "not running. Run 'make up'."
   else
     printf '%s\n' "$services" | while read -r service id; do
