@@ -87,3 +87,20 @@ cert_days_left() {
   done
   echo "$lo"
 }
+
+# container_state <container>: "healthy" for a running container whose health check passes, "completed"
+# for a one-shot (its health check disabled, like backend-migrate) that exited 0, and otherwise its
+# state, health and exit code, to show what's wrong.
+container_state() {
+  docker inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}} {{.State.ExitCode}} {{if .Config.Healthcheck}}{{index .Config.Healthcheck.Test 0}}{{else}}-{{end}}' "$1" |
+    while read -r status health code check; do
+      if [ "$status" = running ] && [ "$health" = healthy ]; then
+        echo healthy
+      elif [ "$status" = exited ] && [ "$code" = 0 ] && [ "$check" = NONE ]; then
+        echo completed
+      else
+        echo "$status, health $health, exit $code"
+      fi
+    done
+}
+

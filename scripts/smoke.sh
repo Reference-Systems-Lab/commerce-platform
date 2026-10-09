@@ -17,9 +17,18 @@ if [ ! -f "$CA" ] || [ ! -f .env ]; then
   die "the certificates or .env are missing. Run 'make bootstrap' first."
 fi
 
-services=$(docker compose config --services | wc -l | tr -d ' ')
-healthy=$(docker ps --quiet --filter "label=com.docker.compose.project=$RSL_PROJECT" --filter health=healthy | wc -l | tr -d ' ')
-[ "$healthy" = "$services" ] || die "$healthy of $services services are healthy. Run 'make up' first."
+# Every service is up and healthy, or is a one-shot that completed (backend-migrate).
+not_ready=
+for service in $(docker compose config --services); do
+  container=$(docker compose ps --all --quiet "$service")
+  if [ -z "$container" ]; then
+    state="not created"
+  else
+    state=$(container_state "$container")
+  fi
+  case $state in healthy | completed) ;; *) not_ready="$not_ready${not_ready:+; }$service: $state" ;; esac
+done
+[ -z "$not_ready" ] || die "not every service is ready ($not_ready). Run 'make up' first."
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -65,16 +74,23 @@ exit_code() {
 
 info "Addresses"
 for host in $RSL_HOSTS; do
+  path=
   case $host in
     "$RSL_DOMAIN") status=200 page="The local platform is running" what="the placeholder" csp=$CSP ;;
     "mail.$RSL_DOMAIN") status=200 page="<title>Mailpit</title>" what="Mailpit" csp= ;;
+    "api.$RSL_DOMAIN") status=200 page='{"status":"ok"}' what="the backend's health" csp='' path=health ;;
     *) status=503 page="running yet" what="the 503 page" csp=$CSP ;;
   esac
   : >"$tmp/headers"
   : >"$tmp/body"
-  want response "$status HTTP/2" "$(tls "$host" -D "$tmp/headers" -o "$tmp/body" -w '%{http_code} HTTP/%{http_version}' "https://$host/" 2>&1 || true)"
+  want response "$status HTTP/2" "$(tls "$host" -D "$tmp/headers" -o "$tmp/body" -w '%{http_code} HTTP/%{http_version}' "https://$host/$path" 2>&1 || true)"
   want HSTS "max-age=86400; includeSubDomains" "$(tr -d '\r' <"$tmp/headers" | sed -n 's/^strict-transport-security: //p')"
   [ -z "$csp" ] || want CSP "$csp" "$(tr -d '\r' <"$tmp/headers" | sed -n 's/^content-security-policy: //p')"
+  if [ "$host" = "api.$RSL_DOMAIN" ]; then
+    # The backend's own headers pass through the proxy unchanged.
+    want nosniff nosniff "$(tr -d '\r' <"$tmp/headers" | sed -n 's/^x-content-type-options: //p')"
+    want cache-control no-store "$(tr -d '\r' <"$tmp/headers" | sed -n 's/^cache-control: //p')"
+  fi
   grep -qF "$page" "$tmp/body" || problems="$problems${problems:+; }page: '$page' not found"
   want "http://$host/x?y=1" "301 https://$host/x?y=1" \
     "$(curl -sS --max-time 10 --resolve "$host:80:127.0.0.1" -o /dev/null -w '%{http_code} %{redirect_url}' "http://$host/x?y=1" 2>&1 || true)"
@@ -172,7 +188,7 @@ check "Meilisearch: /health is open and /indexes needs the master key"
 
 info "Containers"
 hardened="ro=true capdrop=[ALL] capadd=[] sec=[no-new-privileges:true] init=true privileged=false"
-for container in $(docker compose ps --quiet); do
+for container in $(docker compose ps --all --quiet); do
   line=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}} user={{.Config.User}} ro={{.HostConfig.ReadonlyRootfs}} capdrop={{.HostConfig.CapDrop}} capadd={{.HostConfig.CapAdd}} sec={{.HostConfig.SecurityOpt}} init={{.HostConfig.Init}} privileged={{.HostConfig.Privileged}}' "$container")
   service=${line%% *}
   rest=${line#* }
@@ -194,6 +210,15 @@ for service in postgres valkey rabbitmq meilisearch; do
   esac
 done
 check "Networks: data is internal, and the proxy can't reach postgres, valkey, rabbitmq or meilisearch"
+want "the proxy reaches backend-api" '{"status":"ok"}' \
+  "$(docker compose exec -T proxy wget -q -T 5 -O - http://backend-api:8080/health 2>&1 || true)"
+want "backend-migrate networks" "data" "$(docker inspect --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$(docker compose ps --all --quiet backend-migrate)" | sed "s/${RSL_PROJECT}_//g; s/ $//")"
+want "backend-api networks" "data edge" "$(docker inspect --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$(docker compose ps --all --quiet backend-api)" | sed "s/${RSL_PROJECT}_//g; s/ $//")"
+check "The backend: the proxy reaches backend-api on edge; the migration is on data only"
+
+# The catalog answers through the proxy. Its contents depend on make seed, so only the shape is checked.
+want "GET /v1/products" "200 items" "$(tls "api.$RSL_DOMAIN" -o "$tmp/body" -w '%{http_code}' "https://api.$RSL_DOMAIN/v1/products" 2>&1 || true) $(grep -o '"items":\[' "$tmp/body" >/dev/null && echo items)"
+check "api.$RSL_DOMAIN/v1/products: 200 with an items list"
 
 info "Data"
 sql "CREATE TABLE IF NOT EXISTS smoke_persistence (marker text); INSERT INTO smoke_persistence VALUES ('$marker')" \
