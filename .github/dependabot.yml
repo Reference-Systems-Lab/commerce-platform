@@ -13,9 +13,11 @@ updates:
       actions:
         patterns: ["*"]
 
-  # compose.yaml (the platform) and compose.tools.yaml (the lint tools).
+  # compose.yaml (the platform), compose.tools.yaml (the lint tools) and compose/ (the applications'
+  # wiring). Bumping an application's image also needs its include bumped to the same release in
+  # compose.yaml: make lint fails until it is (README, "Updating an application").
   - package-ecosystem: docker-compose
-    directory: /
+    directories: ["/", "/compose"]
     schedule:
       interval: weekly
     cooldown:
