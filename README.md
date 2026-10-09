@@ -89,8 +89,8 @@ file (`compose/<app>.env`). See [ADR 0002](docs/adr/0002-running-applications.md
 **Updating an application** to release `vX.Y.Z`, in one pull request:
 
 1. In `compose.yaml`, set the include to the commit the tag points to
-   (`git ls-remote https://github.com/Reference-Systems-Lab/commerce-<app>.git 'refs/tags/vX.Y.Z^{}'`)
-   and the comment to `# vX.Y.Z`.
+   (`git ls-remote https://github.com/Reference-Systems-Lab/commerce-<app>.git 'refs/tags/vX.Y.Z*'`;
+   for an annotated tag, the `^{}` line) and the comment to `# vX.Y.Z`.
 2. In `compose/compose.<app>.yaml`, set every `image:` to `…:X.Y.Z@sha256:<digest>`
    (`docker buildx imagetools inspect ghcr.io/reference-systems-lab/commerce-<app>:X.Y.Z`).
 3. Run `make lint`: it fails if the three disagree. When Dependabot opens the pull request with the
