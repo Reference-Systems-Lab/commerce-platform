@@ -1,0 +1,15 @@
+# The backend's wiring: what the platform adds to the backend's own compose.platform.yaml (ADR 0002).
+# The image is pinned by tag and digest; its tag must match the include's #v<version> in compose.yaml
+# (make lint checks). The API waits for the migration, which waits for Postgres.
+services:
+  backend-migrate:
+    image: ghcr.io/reference-systems-lab/commerce-backend:0.1.0@sha256:3e17e6003767524951a0626cdfd9452fcfa51f746cac9eff88cbb0ea42660505
+    networks: [data]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  backend-api:
+    image: ghcr.io/reference-systems-lab/commerce-backend:0.1.0@sha256:3e17e6003767524951a0626cdfd9452fcfa51f746cac9eff88cbb0ea42660505
+    networks: [data, edge] # data for Postgres; edge so the proxy can reach it
+    depends_on:
+      backend-migrate: { condition: service_completed_successfully }

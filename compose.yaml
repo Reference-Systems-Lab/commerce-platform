@@ -6,9 +6,19 @@
 # no Linux capabilities, no privilege escalation and an init process. Every image is pinned by digest;
 # Dependabot keeps the pins current (.github/dependabot.yml).
 #
-# Two networks: edge, where the proxy reaches the web UIs, and data (internal: no route out), where the
-# applications will reach the infrastructure. The proxy can't reach any data service.
+# Two networks: edge, where the proxy reaches the web UIs and the applications, and data (internal: no
+# route out), where the applications reach the infrastructure. The proxy can't reach any data service.
 name: rsl-commerce
+
+# The applications. Each declares its own services in its repository's compose.platform.yaml, fetched
+# here at a release tag; this repository's wiring file (compose/compose.<app>.yaml) pins the image by
+# digest and sets the networks and the start order, and a committed env file gives the fragment its
+# non-secret settings (ADR 0002). Bump the tag below and the wiring's image together.
+include:
+  - path:
+      - https://github.com/Reference-Systems-Lab/commerce-backend.git#v0.1.0:compose.platform.yaml
+      - compose/compose.backend.yaml
+    env_file: compose/backend.env
 
 x-hardened: &hardened
   read_only: true
