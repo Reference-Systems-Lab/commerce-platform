@@ -31,8 +31,9 @@ https://observe.rsl-commerce.test
 ```
 
 Each address needs its own line in the hosts file, because hosts files do not support wildcards.
-`make hosts` adds the missing ones. Until an application joins the stack, its address answers with
-a "not running yet" page; `rsl-commerce.test` shows a placeholder until the storefront arrives.
+`make hosts` adds the missing ones. `api.rsl-commerce.test` serves the backend. Until an application
+joins the stack, its address answers with a "not running yet" page; `rsl-commerce.test` shows a
+placeholder until the storefront arrives.
 
 ## Getting started
 
@@ -43,9 +44,12 @@ You need Docker Desktop (WSL2 or macOS) or Docker Engine (Linux) with Compose 5 
 make bootstrap   # secrets, certificates, and trust for the root certificate
 make hosts       # adds the missing local addresses to your hosts file
 make up          # starts everything and waits until it's healthy
+make seed        # once: the development data (run it again after make reset)
 ```
 
-Then open <https://rsl-commerce.test> and <https://mail.rsl-commerce.test>. `make bootstrap` is safe
+Then open <https://rsl-commerce.test>, <https://api.rsl-commerce.test/v1/products> and
+<https://mail.rsl-commerce.test>. The first `make up` downloads the applications' images from GHCR and
+their Compose fragments from GitHub, so it needs network access. `make bootstrap` is safe
 to run again at any time: it keeps your secrets and certificates and asks for nothing that's done.
 
 ## Commands
@@ -53,7 +57,8 @@ to run again at any time: it keeps your secrets and certificates and asks for no
 | Command | What it does |
 | ------- | ------------ |
 | `make bootstrap` | Checks prerequisites, writes `.env` and the Postgres secret, creates or renews the certificates, trusts the root, and lists missing hosts lines |
-| `make up` | Starts the platform and waits until every service is healthy |
+| `make up` | Starts the platform and waits until every service is healthy; `LOCAL=backend` builds the backend from `../backend` (or `BACKEND_SRC`) instead of pulling its image |
+| `make seed` | Adds the development data (the backend's products). Safe to run again; `make up` never seeds |
 | `make down` | Stops it and keeps the data |
 | `make reset` | Stops it and deletes its data (asks first; `CONFIRM=yes` skips the question). Keeps `.env` and the certificates |
 | `make status` | Service health, the certificate's days left, trust and the hosts file |
@@ -69,6 +74,27 @@ The services, on the internal `data` network: `postgres:5432` (user and database
 credential, generated into `.env`: `POSTGRES_PASSWORD`, `VALKEY_PASSWORD`, `RABBITMQ_PASSWORD` (user
 `commerce`) and `MEILI_MASTER_KEY`. The proxy sits on a separate `edge` network and can't reach
 them. RabbitMQ's management UI is at <http://127.0.0.1:15672>.
+
+## Applications
+
+Each application runs from its own repository's `compose.platform.yaml`, which `compose.yaml`
+includes at the commit of a release, together with this repository's wiring file
+(`compose/compose.<app>.yaml`: the image pinned by digest, the networks and the start order) and env
+file (`compose/<app>.env`). See [ADR 0002](docs/adr/0002-running-applications.md).
+
+| Application | Services | Address |
+| ----------- | -------- | ------- |
+| backend | `backend-migrate` (applies migrations, then exits), `backend-api` | <https://api.rsl-commerce.test> |
+
+**Updating an application** to release `vX.Y.Z`, in one pull request:
+
+1. In `compose.yaml`, set the include to the commit the tag points to
+   (`git ls-remote https://github.com/Reference-Systems-Lab/commerce-<app>.git 'refs/tags/vX.Y.Z^{}'`)
+   and the comment to `# vX.Y.Z`.
+2. In `compose/compose.<app>.yaml`, set every `image:` to `…:X.Y.Z@sha256:<digest>`
+   (`docker buildx imagetools inspect ghcr.io/reference-systems-lab/commerce-<app>:X.Y.Z`).
+3. Run `make lint`: it fails if the three disagree. When Dependabot opens the pull request with the
+   new image, do step 1 in that pull request.
 
 ## What asks for permission
 
@@ -121,9 +147,9 @@ to refuse any commit that contains a secret.
 
 ## Status
 
-The walking skeleton: the proxy, local TLS and the infrastructure services run, with `make smoke`
-and CI proving them. No application has joined yet. The decisions behind the stack are in
-[ADR 0001](docs/adr/0001-platform-stack.md).
+The walking skeleton: the proxy, local TLS, the infrastructure services and the backend run, with
+`make smoke` and CI proving them. The decisions are in [ADR 0001](docs/adr/0001-platform-stack.md)
+(the stack) and [ADR 0002](docs/adr/0002-running-applications.md) (running the applications).
 
 ## License
 
