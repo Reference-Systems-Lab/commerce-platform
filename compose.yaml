@@ -6,8 +6,11 @@
 # no Linux capabilities, no privilege escalation and an init process. Every image is pinned by digest;
 # Dependabot keeps the pins current (.github/dependabot.yml).
 #
-# Two networks: edge, where the proxy reaches the web UIs and the applications, and data (internal: no
-# route out), where the applications reach the infrastructure. The proxy can't reach any data service.
+# Networks: edge, where the proxy reaches the web UIs and the applications, and data, where the
+# applications reach the infrastructure. Both are internal (no route out), so no application or service
+# can reach the internet, and the proxy can't reach any data service. Only the proxy is also on ingress,
+# the one ordinary network, because publishing ports needs one (RabbitMQ's UI has rabbitmq-ui for the
+# same reason). ADR 0002.
 name: rsl-commerce
 
 # The applications. Each declares its own services in its repository's compose.platform.yaml, fetched
@@ -39,7 +42,7 @@ services:
     ports:
       - "127.0.0.1:80:80"
       - "127.0.0.1:443:443"
-    networks: [edge]
+    networks: [edge, ingress] # ingress only to publish 80 and 443
     volumes:
       # create_host_path: false, so a missing directory is an error instead of a root-owned empty one.
       - { type: bind, source: ./proxy/conf.d, target: /etc/nginx/conf.d, read_only: true, bind: { create_host_path: false } }
@@ -178,7 +181,9 @@ secrets:
     file: ./secrets/valkey.conf
 
 networks:
-  edge: {}
+  ingress: {}
+  edge:
+    internal: true
   data:
     internal: true
   rabbitmq-ui: {}

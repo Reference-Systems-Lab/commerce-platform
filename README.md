@@ -73,7 +73,8 @@ The services, on the internal `data` network: `postgres:5432` (user and database
 `valkey:6379`, `rabbitmq:5672`, `mailpit:1025` for SMTP, and `meilisearch:7700`. Each needs its
 credential, generated into `.env`: `POSTGRES_PASSWORD`, `VALKEY_PASSWORD`, `RABBITMQ_PASSWORD` (user
 `commerce`) and `MEILI_MASTER_KEY`. The proxy sits on a separate `edge` network and can't reach
-them. RabbitMQ's management UI is at <http://127.0.0.1:15672>.
+them. Both `data` and `edge` are internal, so nothing in the platform can reach the internet; only the
+proxy also joins `ingress`, to publish ports 80 and 443. RabbitMQ's management UI is at <http://127.0.0.1:15672>.
 
 ## Applications
 
@@ -124,6 +125,9 @@ certificates, trust and the hosts file, and says what to do about each problem.
   certificate may refuse to let you continue. Clear it for the address: in Chrome or Edge open
   `chrome://net-internals/#hsts` (or `edge://net-internals/#hsts`) and delete the domain policy for
   `rsl-commerce.test`; in Firefox, forget the site from its history.
+- **`api.` or `mail.` answers "not running yet" while its service is healthy.** The proxy can't
+  resolve the service's name, which happens when a pull changed the platform's networks under a running
+  stack. `make down` then `make up` recreates them.
 - **A credential stopped working.** Postgres and RabbitMQ keep the password from their first start
   in their data volume. If `.env` changed since, `make reset` starts the data over.
 

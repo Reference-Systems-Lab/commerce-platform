@@ -203,13 +203,14 @@ want ports "127.0.0.1:15672 127.0.0.1:443 127.0.0.1:80" \
   "$(for container in $(docker compose ps --quiet); do docker port "$container"; done | sed 's/.* -> //' | sort | paste -sd' ' -)"
 check "Published ports: only 127.0.0.1 80, 443 and 15672"
 want "data is internal" true "$(docker network inspect "${RSL_PROJECT}_data" --format '{{.Internal}}' 2>&1 || true)"
+want "edge is internal" true "$(docker network inspect "${RSL_PROJECT}_edge" --format '{{.Internal}}' 2>&1 || true)"
 for service in postgres valkey rabbitmq meilisearch; do
   case $(docker compose exec -T proxy wget -q -T 2 -O /dev/null "http://$service/" 2>&1 || true) in
     *"bad address"*) ;;
     *) problems="$problems${problems:+; }the proxy can resolve $service" ;;
   esac
 done
-check "Networks: data is internal, and the proxy can't reach postgres, valkey, rabbitmq or meilisearch"
+check "Networks: data and edge are internal, and the proxy can't reach postgres, valkey, rabbitmq or meilisearch"
 want "the proxy reaches backend-api" '{"status":"ok"}' \
   "$(docker compose exec -T proxy wget -q -T 5 -O - http://backend-api:8080/health 2>&1 || true)"
 want "backend-migrate networks" "data" "$(docker inspect --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$(docker compose ps --all --quiet backend-migrate)" | sed "s/${RSL_PROJECT}_//g; s/ $//")"

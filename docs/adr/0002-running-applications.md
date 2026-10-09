@@ -29,6 +29,11 @@ Compose 5.5.1 confirmed the mechanism before it was built.
   backend's migration waits for Postgres; its API waits for the migration to complete). A committed
   `compose/<app>.env` gives the fragment its non-secret settings, such as a database URL without a
   password; secrets reach the application only as the platform's secret files.
+- **No route out.** `edge` is internal like `data` (this tightens ADR 0001's networks): no
+  application or service can reach the internet, so a compromised application can't send data out.
+  The proxy alone also joins `ingress`, the one ordinary network, because publishing ports 80 and 443
+  needs one. An application that needs the internet later (the backend, for the Authorize.Net
+  sandbox) gets an explicit egress network in its own change.
 - **Routing.** Each application's address gets its own `proxy/conf.d` file that proxies to the
   service through a variable (so the proxy starts while the application is down) and serves the
   "not running" page on 502 or 504. The proxy adds HSTS and the forwarding headers and nothing
@@ -49,6 +54,8 @@ Compose 5.5.1 confirmed the mechanism before it was built.
 
 - **Copying each fragment into this repository.** No network needed, but the contract then lives in
   two places and drifts from the application.
+- **Leaving `edge` as an ordinary network.** Simpler, but every application on it could reach the
+  internet whether or not it needs to.
 - **Including the fragment from a sibling checkout by default.** It breaks for anyone who cloned
   only the platform, and makes the running version whatever happens to be checked out.
 - **Pinning the include by tag.** Readable, but a tag can be moved after review; the commit plus a
@@ -72,3 +79,5 @@ Compose 5.5.1 confirmed the mechanism before it was built.
   release tag there.
 - The storefront joins the same way, with its own fragment, wiring, env file and route.
 - Container resource limits, when needed, belong in the wiring file.
+- Changing a network's settings on a running stack leaves Docker's name resolution stale until the
+  containers are recreated, so pulling this change needs one `make down` and `make up`.
