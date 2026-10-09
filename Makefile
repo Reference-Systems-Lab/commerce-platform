@@ -2,7 +2,7 @@
 # line lives in scripts/ as POSIX sh, so each command behaves the same on WSL2, macOS and Linux.
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap up down reset logs status doctor smoke lint trust untrust hosts
+.PHONY: help bootstrap up seed down reset logs status doctor smoke lint trust untrust hosts
 
 # Stopping and reading logs create nothing, so they need no credentials. The placeholders let Compose
 # read compose.yaml when .env is missing or incomplete; without them `make reset` fails in exactly the
@@ -18,6 +18,9 @@ bootstrap: ## Prepare this machine: secrets, certificates, trust; safe to run ag
 
 up: ## Start the platform and wait until every service is healthy (LOCAL=backend builds it from ../backend)
 	@LOCAL="$(LOCAL)" sh ./scripts/up.sh
+
+seed: ## Add the development data (the backend's products); safe to run again, and never run by up
+	docker compose run --rm --no-deps backend-api seed
 
 down: ## Stop the platform and keep its data
 	@$(COMPOSE_NO_CREATE) down
