@@ -87,3 +87,49 @@ cert_days_left() {
   done
   echo "$lo"
 }
+
+# container_state <container>: "healthy" for a running container whose health check passes, "completed"
+# for a one-shot (its health check disabled, like backend-migrate) that exited 0, and otherwise its
+# state, health and exit code, to show what's wrong.
+container_state() {
+  state=$(container_state_raw "$1")
+  printf '%s\n' "${state:-unknown}"
+}
+container_state_raw() {
+  docker inspect --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}} {{.State.ExitCode}} {{if .Config.Healthcheck}}{{index .Config.Healthcheck.Test 0}}{{else}}-{{end}}' "$1" 2>/dev/null |
+    while read -r status health code check; do
+      if [ "$status" = running ] && [ "$health" = healthy ]; then
+        echo healthy
+      elif [ "$status" = exited ] && [ "$code" = 0 ] && [ "$check" = NONE ]; then
+        echo completed
+      else
+        echo "$status, health $health, exit $code"
+      fi
+    done
+}
+
+# compose_files: the -f arguments for compose.yaml plus, for each application in $LOCAL
+# (comma-separated), its local-build override compose/local/<app>.yaml. Stops with a message when an
+# application has no override or its checkout (<APP>_SRC from the environment or .env, default
+# ../<app>) isn't a directory. Callers expand the result unquoted, with globbing off (set -f).
+compose_files() {
+  set -f
+  files="-f compose.yaml"
+  for app in $(printf '%s' "${LOCAL:-}" | tr ',' ' '); do
+    case $app in
+      *[!a-z0-9-]* | -*) die "LOCAL=$app: application names are lowercase letters, digits and hyphens." ;;
+    esac
+    file=compose/local/$app.yaml
+    [ -f "$file" ] || die "LOCAL=$app: there is no $file, so $app can't be built locally."
+    var=$(printf '%s_SRC' "$app" | tr 'a-z-' 'A-Z_')
+    # $var is now [A-Z0-9_]+, so the eval only reads that variable.
+    eval "src=\${$var:-}"
+    [ -n "$src" ] || src=$(env_get "$var")
+    [ -n "$src" ] || src=../$app
+    [ -d "$src" ] || die "LOCAL=$app: $src isn't a directory. Clone $app there, or set $var."
+    info "Building $app from $src" >&2
+    files="$files -f $file"
+  done
+  printf '%s\n' "$files"
+}
+

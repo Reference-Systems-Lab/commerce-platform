@@ -46,6 +46,14 @@ jobs:
       - name: Start the platform
         run: make up
 
+      - name: Seed twice, and the catalog serves the 6 development products
+        run: |
+          make seed
+          make seed
+          count=$(curl -fsS --resolve api.rsl-commerce.test:443:127.0.0.1 --cacert certs/ca/rootCA.pem \
+            'https://api.rsl-commerce.test/v1/products?limit=100' | grep -o '"slug":' | wc -l)
+          test "$count" -eq 6 || { echo "::error::$count products after make seed twice, want 6"; exit 1; }
+
       - name: Smoke checks
         run: make smoke
 

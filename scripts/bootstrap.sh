@@ -41,7 +41,7 @@ sh scripts/hosts.sh --check || hosts_ok=no
 
 echo
 if [ "$hosts_ok" = yes ]; then
-  info "Ready. Run 'make up'."
+  info "Ready. Run 'make up', then 'make seed' once for the development data (and again after 'make reset')."
 else
-  info "Next: 'make hosts' (one elevation prompt), then 'make up'."
+  info "Next: 'make hosts' (one elevation prompt), then 'make up', then 'make seed' once for the development data (and again after 'make reset')."
 fi

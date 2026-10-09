@@ -6,9 +6,23 @@
 # no Linux capabilities, no privilege escalation and an init process. Every image is pinned by digest;
 # Dependabot keeps the pins current (.github/dependabot.yml).
 #
-# Two networks: edge, where the proxy reaches the web UIs, and data (internal: no route out), where the
-# applications will reach the infrastructure. The proxy can't reach any data service.
+# Networks: edge, where the proxy reaches the web UIs and the applications, and data, where the
+# applications reach the infrastructure. Both are internal (no route out), so no application or service
+# can reach the internet, and the proxy can't reach any data service. Only the proxy is also on ingress,
+# the one ordinary network, because publishing ports needs one (RabbitMQ's UI has rabbitmq-ui for the
+# same reason). ADR 0002.
 name: rsl-commerce
+
+# The applications. Each declares its own services in its repository's compose.platform.yaml, fetched
+# here at the commit of a release (a tag can move; a commit can't), with the release named in a comment.
+# This repository's wiring file (compose/compose.<app>.yaml) pins the image by digest and sets the
+# networks and the start order, and a committed env file gives the fragment its non-secret settings
+# (ADR 0002). Bump the commit, its comment and the wiring's image together; make lint checks they agree.
+include:
+  - path:
+      - https://github.com/Reference-Systems-Lab/commerce-backend.git#929b6f17e44e6eb5cc60b1e5faf2f23a46bbc921:compose.platform.yaml # v0.1.0
+      - compose/compose.backend.yaml
+    env_file: compose/backend.env
 
 x-hardened: &hardened
   read_only: true
@@ -28,7 +42,7 @@ services:
     ports:
       - "127.0.0.1:80:80"
       - "127.0.0.1:443:443"
-    networks: [edge]
+    networks: [edge, ingress] # ingress only to publish 80 and 443
     volumes:
       # create_host_path: false, so a missing directory is an error instead of a root-owned empty one.
       - { type: bind, source: ./proxy/conf.d, target: /etc/nginx/conf.d, read_only: true, bind: { create_host_path: false } }
@@ -167,7 +181,9 @@ secrets:
     file: ./secrets/valkey.conf
 
 networks:
-  edge: {}
+  ingress: {}
+  edge:
+    internal: true
   data:
     internal: true
   rabbitmq-ui: {}

@@ -14,16 +14,17 @@ elif ! docker info >/dev/null 2>&1; then
   warn "Docker isn't running."
 else
   # Placeholder credentials, as in the Makefile: listing creates nothing, and must work with an incomplete .env.
-  services=$(RABBITMQ_PASSWORD=unused MEILI_MASTER_KEY=unused docker compose ps --all --format '{{.Service}} {{.State}} {{.Health}}')
-  if [ -z "$services" ]; then
+  if ! services=$(RABBITMQ_PASSWORD=unused MEILI_MASTER_KEY=unused docker compose ps --all --format '{{.Service}} {{.ID}}' 2>&1); then
+    warn "Compose couldn't read the project: $(printf '%s' "$services" | tail -n 1)"
+  elif [ -z "$services" ]; then
     warn "not running. Run 'make up'."
   else
-    printf '%s\n' "$services" | while read -r service state health; do
-      if [ "$state" = running ] && [ "${health:-healthy}" = healthy ]; then
-        ok "$service: running, healthy"
-      else
-        warn "$service: $state${health:+, $health}"
-      fi
+    printf '%s\n' "$services" | while read -r service id; do
+      case $(container_state "$id") in
+        healthy) ok "$service: running, healthy" ;;
+        completed) ok "$service: completed" ;;
+        *) warn "$service: $(container_state "$id")" ;;
+      esac
     done
   fi
 fi
@@ -43,5 +44,6 @@ printf '%s\n' "$hosts" | sed -n 's/^\(  ok    \)/\1/p; s/^\(  warn  \)/\1/p; s/^
 
 info "Addresses"
 info "  https://rsl-commerce.test        placeholder until the storefront joins"
+info "  https://api.rsl-commerce.test    the backend API ('make seed' adds the development products)"
 info "  https://mail.rsl-commerce.test   Mailpit: every email the platform sends"
 info "  http://127.0.0.1:15672           RabbitMQ management (user commerce, password in .env)"
