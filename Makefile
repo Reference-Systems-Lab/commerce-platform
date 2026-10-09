@@ -16,11 +16,8 @@ help: ## List the commands
 bootstrap: ## Prepare this machine: secrets, certificates, trust; safe to run again
 	@sh ./scripts/bootstrap.sh
 
-up: ## Start the platform and wait until every service is healthy
-	@for f in .env secrets/postgres_password secrets/valkey.conf certs/leaf/cert.pem certs/leaf/key.pem; do \
-		[ -f "$$f" ] || { echo "error: $$f is missing. Run 'make bootstrap' first." >&2; exit 1; }; \
-	done
-	docker compose up --detach --wait
+up: ## Start the platform and wait until every service is healthy (LOCAL=backend builds it from ../backend)
+	@LOCAL="$(LOCAL)" sh ./scripts/up.sh
 
 down: ## Stop the platform and keep its data
 	@$(COMPOSE_NO_CREATE) down

@@ -1,0 +1,12 @@
+# make up LOCAL=backend: build the backend from a local checkout instead of pulling its pinned image
+# (ADR 0002). The checkout is ../backend unless BACKEND_SRC says otherwise.
+services:
+  backend-migrate:
+    image: commerce-backend:local
+    build: { context: "${BACKEND_SRC:-../backend}" }
+    pull_policy: build
+
+  backend-api:
+    image: commerce-backend:local
+    build: { context: "${BACKEND_SRC:-../backend}" }
+    pull_policy: build
