@@ -23,3 +23,8 @@ services:
     <<: *tool
     image: hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d
     entrypoint: ["/bin/hadolint"]
+
+  # Reads the merged Compose model on stdin (make lint checks what each application's fragment adds).
+  jq:
+    <<: *tool
+    image: ghcr.io/jqlang/jq:1.8.2@sha256:b9c68867e5766576263a222e91db3de422d802069c7af70440e667a95344e486
