@@ -35,7 +35,7 @@ services:
   # Terminates TLS for the 8 local addresses and routes each to its service (proxy/conf.d).
   proxy:
     <<: *hardened
-    image: nginxinc/nginx-unprivileged:1.30.5-alpine-slim@sha256:3af0c10d960cc2502427fe1219c52989d309e7d65596869c60a34fd2fa2406f0
+    image: nginxinc/nginx-unprivileged:1.30.5-alpine-slim@sha256:7f79f463c6eb0d0bf8782992bb9636434398e3e5848398805aef2c9b025d8609
     user: "101:101"
     environment:
       NGINX_ENTRYPOINT_QUIET_LOGS: "1"
