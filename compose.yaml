@@ -158,6 +158,7 @@ services:
       MEILI_ENV: development
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?run make bootstrap first}
       MEILI_NO_ANALYTICS: "true"
+      MEILI_UPGRADE_DB: "true" # a newer image upgrades the volume instead of refusing to start
       TINI_SUBREAPER: "1" # as for valkey
     tmpfs: ["/tmp:size=512m"] # indexing writes its sort files here
     networks: [data]
