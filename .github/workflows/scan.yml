@@ -1,0 +1,25 @@
+name: Scan
+
+# Weekly, so a new advisory shows up even when nothing changes. Separate from CI because the local
+# stand-ins always carry findings we can't fix, which must not block a pull request. See scripts/scan.sh.
+on:
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    name: Images
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Scan every pinned image with Grype
+        run: make scan

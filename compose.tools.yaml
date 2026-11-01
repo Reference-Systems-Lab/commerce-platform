@@ -1,6 +1,6 @@
-# The lint tools scripts/lint.sh runs (make lint), pinned by digest like every other image. A separate
-# project, so the platform's own commands never touch it. Each tool reads the checkout read-only, has no
-# network, and runs hardened as an unprivileged user.
+# The tools scripts/lint.sh (make lint) and scripts/scan.sh (make scan) run, pinned by digest like every
+# other image. A separate project, so the platform's own commands never touch it. Each tool reads the
+# checkout read-only and runs hardened as an unprivileged user, and only Grype has a network.
 name: rsl-commerce-tools
 
 x-tool: &tool
@@ -28,3 +28,17 @@ services:
   jq:
     <<: *tool
     image: ghcr.io/jqlang/jq:1.8.2@sha256:b9c68867e5766576263a222e91db3de422d802069c7af70440e667a95344e486
+
+  # Reads images straight from their registries (make scan), so it needs a network but no Docker socket.
+  grype:
+    <<: *tool
+    network_mode: bridge
+    image: anchore/grype:v0.121.0@sha256:621d56d1d68106b787022c81546f7e0a36202a25d1239f0c20195fab8c16f7ea
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    tmpfs: ["/tmp:size=6g,mode=1777"]
+    environment:
+      GRYPE_DB_CACHE_DIR: /cache
+      GRYPE_CHECK_FOR_APP_UPDATE: "false"
+      TMPDIR: /tmp
+    volumes:
+      - { type: bind, source: "${GRYPE_CACHE:-/nonexistent-run-make-scan}", target: /cache }
