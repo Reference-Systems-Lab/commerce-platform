@@ -70,7 +70,6 @@ services:
     networks: [data]
     volumes:
       - postgres:/var/lib/postgresql
-    tmpfs: ["/tmp:size=64m", "/var/run/postgresql:uid=70,gid=70,size=1m"]
     healthcheck:
       # Over TCP: the server the image starts for its first-run setup listens only on the socket, so this
       # stays unhealthy until the real server is up.

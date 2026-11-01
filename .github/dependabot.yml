@@ -40,7 +40,8 @@ updates:
       - dependency-name: nginxinc/nginx-unprivileged
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       # A new PostgreSQL major version needs a data migration, so it is never automatic.
-      - dependency-name: dhi.io/postgres
+      # Dependabot names a dependency without its registry, so this also covers dhi.io/postgres.
+      - dependency-name: postgres
         update-types: ["version-update:semver-major"]
 
   # The derived images' pinned bases (images/mailpit, images/meilisearch).

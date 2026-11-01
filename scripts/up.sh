@@ -11,6 +11,7 @@ for f in .env secrets/postgres_password secrets/valkey.conf certs/leaf/cert.pem 
   [ -f "$f" ] || die "$f is missing. Run 'make bootstrap' first."
 done
 
+docker info >/dev/null 2>&1 || die "Docker isn't running, isn't installed, or this user can't reach it. 'make doctor' checks."
 if image=$(dhi_unreadable); then
   die "Docker can't read $image. $DHI_LOGIN_HINT"
 fi

@@ -60,7 +60,7 @@ both, including where the build had to differ from the spike.
   option"). The file, `secrets/postgres_password`, is written from `.env` by bootstrap.
 - **The certificate's key and the secret file are mode 0644.** Compose bind-mounts both, and
   ignores ownership and mode for file secrets, so the containers' non-root users (101 for the
-  proxy, 999 for Postgres) can read them only if everyone can. Both sit in gitignored directories
+  proxy, 70 for Postgres) can read them only if everyone can. Both sit in gitignored directories
   on a single-user machine, and the key belongs to a short-lived certificate the root constrains.
   The root's key stays 0600 in a 0700 directory and is never mounted.
 - **IPv6 is excluded from the root in the expanded form.** `openssl` rejects the short `IP:::/0`;

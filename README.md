@@ -52,8 +52,8 @@ make seed        # once: the development data (run it again after make reset)
 ```
 
 Then open <https://rsl-commerce.test>, <https://api.rsl-commerce.test/v1/products> and
-<https://mail.rsl-commerce.test>. The first `make up` downloads the applications' images from GHCR and
-their Compose fragments from GitHub, so it needs network access. `make bootstrap` is safe
+<https://mail.rsl-commerce.test>. The first `make up` downloads the hardened images from `dhi.io`, the applications'
+images from GHCR and their Compose fragments from GitHub, so it needs network access. `make bootstrap` is safe
 to run again at any time: it keeps your secrets and certificates and asks for nothing that's done.
 
 ## Commands

@@ -6,7 +6,8 @@
 #
 # Docker Hardened Images need a login, which only the host has, so they are pulled and scanned from an
 # archive. They are listed twice: raw, and with the VEX statements Docker publishes about them, which
-# are Docker's own claims, not ones we have checked. Without `docker scout` the second count reads n/a.
+# are Docker's own claims, not ones we have checked: only their signature is verified, without the
+# public log. Without `docker scout`, or if it can't verify them, the second count reads n/a.
 set -eu
 cd "$(dirname "$0")/.."
 # shellcheck source=scripts/lib.sh
@@ -14,6 +15,8 @@ cd "$(dirname "$0")/.."
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 GRYPE_CACHE=$tmp/db
 SCAN_DIR=$tmp/scan
 HOST_UID=$(id -u)
@@ -40,6 +43,8 @@ counts() {
 {
   grep -hE '^[[:space:]]*image:.*@sha256:[0-9a-f]{64}' compose.yaml compose/*.yaml | awk '{print $2}'
   grep -hE '^FROM .*@sha256:[0-9a-f]{64}' images/*/Dockerfile | awk '{print $2}'
+  # CI runs this one directly, with the token and the Docker socket.
+  docker compose -f compose.tools.yaml config --images scout-cli
 } | sort -u >"$tmp/images"
 [ -s "$tmp/images" ] || die "no pinned images found"
 
@@ -59,11 +64,18 @@ while read -r image; do
       tools grype docker-archive:/scan/image.tar -o json -q >"$tmp/result.json"
       vex_critical=n/a
       vex_high=n/a
-      if docker scout vex get "registry://$image" --output "$SCAN_DIR/vex.json" >/dev/null 2>&1 && [ -s "$SCAN_DIR/vex.json" ]; then
+      if ! docker scout version >/dev/null 2>&1; then
+        warn "docker scout isn't installed: no VEX counts for ${image%%@*}" >&2
+      elif docker scout vex get --verify --skip-tlog "registry://$image" --output "$SCAN_DIR/vex.json" >/dev/null 2>"$tmp/scout.err" && [ -s "$SCAN_DIR/vex.json" ]; then
         tools grype docker-archive:/scan/image.tar --vex /scan/vex.json -o json -q >"$tmp/vex-result.json"
         vex=$(counts "$tmp/vex-result.json")
         vex_critical=$(printf '%s' "$vex" | cut -f1)
         vex_high=$(printf '%s' "$vex" | cut -f2)
+      else
+        # In CI this fails the job, so an expired token can't quietly remove the counts.
+        warn "docker scout couldn't read the VEX statements for ${image%%@*}" >&2
+        tail -n 5 "$tmp/scout.err" >&2 || true
+        [ -z "${GITHUB_ACTIONS:-}" ] || failed=1
       fi
       rm -f "$SCAN_DIR/image.tar" "$SCAN_DIR/vex.json"
       ;;

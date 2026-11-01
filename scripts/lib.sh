@@ -55,6 +55,7 @@ volume_exists() {
 # nor readable with this machine's Docker login. Returns 1 when there is none, so working offline with
 # pulled images needs nothing.
 dhi_unreadable() {
+  # shellcheck disable=SC2013 # image references hold no spaces
   for image in $(sed -n 's/^[[:space:]]*image:[[:space:]]*\(dhi\.io\/[^[:space:]]*\).*/\1/p' compose.yaml); do
     docker image inspect "$image" >/dev/null 2>&1 && continue
     docker manifest inspect "$image" >/dev/null 2>&1 && continue
