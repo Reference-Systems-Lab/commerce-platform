@@ -29,7 +29,8 @@ services:
     <<: *tool
     image: ghcr.io/jqlang/jq:1.8.2@sha256:b9c68867e5766576263a222e91db3de422d802069c7af70440e667a95344e486
 
-  # Reads images straight from their registries (make scan), so it needs a network but no Docker socket.
+  # make scan: reads public images straight from their registries, and the ones that need a login from
+  # archives scripts/scan.sh saves, so it needs a network but no Docker socket or credentials.
   grype:
     <<: *tool
     network_mode: bridge
@@ -42,3 +43,9 @@ services:
       TMPDIR: /tmp
     volumes:
       - { type: bind, source: "${GRYPE_CACHE:-/nonexistent-run-make-scan}", target: /cache }
+      - { type: bind, source: "${SCAN_DIR:-/nonexistent-run-make-scan}", target: /scan, read_only: true }
+
+  # Never run here: CI copies the plugin out of this image, so Dependabot and make lint cover its pin.
+  scout-cli:
+    <<: *tool
+    image: docker/scout-cli:1.28.0@sha256:3f9d5fd0b7093853383800941ff50825c77a2bd6cf118717f158c2efc18ac3c3

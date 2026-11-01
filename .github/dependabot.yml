@@ -2,6 +2,14 @@ version: 2
 
 # Every ecosystem waits 7 days after a release before proposing it, and groups its routine updates
 # into one pull request. Images are pinned by tag and digest; Dependabot updates both.
+registries:
+  # Docker Hardened Images: a read-only Docker Hub token, in the repository's Dependabot secrets.
+  dhi:
+    type: docker-registry
+    url: https://dhi.io
+    username: ${{ secrets.DHI_USERNAME }}
+    password: ${{ secrets.DHI_TOKEN }}
+
 updates:
   - package-ecosystem: github-actions
     directory: /
@@ -18,6 +26,7 @@ updates:
   # compose.yaml: make lint fails until it is (README, "Updating an application").
   - package-ecosystem: docker-compose
     directories: ["/", "/compose"]
+    registries: [dhi]
     schedule:
       interval: weekly
     cooldown:
@@ -31,7 +40,7 @@ updates:
       - dependency-name: nginxinc/nginx-unprivileged
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       # A new PostgreSQL major version needs a data migration, so it is never automatic.
-      - dependency-name: postgres
+      - dependency-name: dhi.io/postgres
         update-types: ["version-update:semver-major"]
 
   # The derived images' pinned bases (images/mailpit, images/meilisearch).

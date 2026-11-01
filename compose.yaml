@@ -4,7 +4,8 @@
 #
 # Every container is hardened the same way (DE-5): a numeric non-root user, a read-only root filesystem,
 # no Linux capabilities, no privilege escalation and an init process. Every image is pinned by digest;
-# Dependabot keeps the pins current (.github/dependabot.yml).
+# Dependabot keeps the pins current (.github/dependabot.yml). Postgres and Valkey are Docker Hardened
+# Images, which need a `docker login dhi.io` (ADR 0001, amendment of 2026-10-31).
 #
 # Networks: edge, where the proxy reaches the web UIs and the applications, and data, where the
 # applications reach the infrastructure. Both are internal (no route out), so no application or service
@@ -59,8 +60,8 @@ services:
 
   postgres:
     <<: *hardened
-    image: postgres:18.6-trixie@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
-    user: "999:999"
+    image: dhi.io/postgres:18.6@sha256:999a73de37f01e2bd3f33865398a5e52780fe9f666322c62b9b2247cb0fa4645
+    user: "70:70"
     environment:
       POSTGRES_USER: commerce
       POSTGRES_DB: commerce
@@ -69,7 +70,7 @@ services:
     networks: [data]
     volumes:
       - postgres:/var/lib/postgresql
-    tmpfs: ["/tmp:size=64m", "/var/run/postgresql:uid=999,gid=999,size=1m"]
+    tmpfs: ["/tmp:size=64m", "/var/run/postgresql:uid=70,gid=70,size=1m"]
     healthcheck:
       # Over TCP: the server the image starts for its first-run setup listens only on the socket, so this
       # stays unhealthy until the real server is up.
@@ -84,8 +85,8 @@ services:
   # from a secret file so it never appears on a command line.
   valkey:
     <<: *hardened
-    image: valkey/valkey:9.1.2-trixie@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
-    user: "999:999"
+    image: dhi.io/valkey:9.1.3@sha256:682c074f401fe3120060371c7bdf1d1dbb0196da2e33cd5147aff2323e9d094e
+    user: "65532:65532"
     command: ["valkey-server", "/run/secrets/valkey_config"]
     environment:
       TINI_SUBREAPER: "1" # the image's own tini runs under Docker's init; this lets it reap as intended
@@ -94,7 +95,8 @@ services:
     volumes:
       - valkey:/data
     healthcheck:
-      test: ["CMD-SHELL", "VALKEYCLI_AUTH=\"$$(sed -n 's/^requirepass //p' /run/secrets/valkey_config)\" valkey-cli ping | grep -qx PONG"]
+      # The image has no sed or grep, so the shell reads the config's one line itself.
+      test: ["CMD-SHELL", "read -r _ VALKEYCLI_AUTH </run/secrets/valkey_config; export VALKEYCLI_AUTH; [ \"$$(valkey-cli ping)\" = PONG ]"]
       interval: 10s
       timeout: 3s
       retries: 5

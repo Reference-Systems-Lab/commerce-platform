@@ -3,6 +3,10 @@
 # Only our own images fail the scan, at high or above. The local stand-ins (PostgreSQL, Valkey, nginx
 # and the rest) are reported, not gated: their findings are mostly ones Debian won't fix, which we can
 # only change by moving to a newer upstream image, and Dependabot proposes those. Nothing is ignored.
+#
+# Docker Hardened Images need a login, which only the host has, so they are pulled and scanned from an
+# archive. They are listed twice: raw, and with the VEX statements Docker publishes about them, which
+# are Docker's own claims, not ones we have checked. Without `docker scout` the second count reads n/a.
 set -eu
 cd "$(dirname "$0")/.."
 # shellcheck source=scripts/lib.sh
@@ -11,39 +15,66 @@ cd "$(dirname "$0")/.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 GRYPE_CACHE=$tmp/db
+SCAN_DIR=$tmp/scan
 HOST_UID=$(id -u)
 HOST_GID=$(id -g)
-export GRYPE_CACHE HOST_UID HOST_GID
-mkdir "$GRYPE_CACHE"
+export GRYPE_CACHE SCAN_DIR HOST_UID HOST_GID
+mkdir "$GRYPE_CACHE" "$SCAN_DIR"
 
-tools() { docker compose -f compose.tools.yaml run --rm --quiet-pull -T "$@"; }
+# Compose would otherwise read the rest of the image list from the loop's stdin.
+tools() { docker compose -f compose.tools.yaml run --rm --quiet-pull -T "$@" </dev/null; }
 
-{
-  grep -hE '^[[:space:]]*image:.*@sha256:[0-9a-f]{64}' compose.yaml compose/*.yaml | awk '{print $2}'
-  grep -hE '^FROM .*@sha256:[0-9a-f]{64}' images/*/Dockerfile | awk '{print $2}'
-} | sort -u >"$tmp/images"
-
-failed=0
-{
-  echo '| Image | Critical | High | High or critical with a fix | Gate |'
-  echo '| ----- | -------- | ---- | --------------------------- | ---- |'
-} >"$tmp/report"
-
-while read -r image; do
-  # Compose would otherwise read the rest of the list from this loop's stdin.
-  tools grype "registry:$image" -o json -q </dev/null >"$tmp/result.json"
+# counts <result.json>: critical, high, and high or critical with a fix, tab-separated.
+counts() {
   # shellcheck disable=SC2016 # a jq program: its $ names are jq's, not the shell's
-  counts=$(tools jq -r '
+  docker compose -f compose.tools.yaml run --rm --quiet-pull -T jq -r '
     [.matches[] | {id: .vulnerability.id, pkg: .artifact.name, sev: .vulnerability.severity, fix: .vulnerability.fix.state}]
     | unique | . as $m
     | [
         ([$m[] | select(.sev == "Critical")] | length),
         ([$m[] | select(.sev == "High")] | length),
         ([$m[] | select(.sev == "Critical" or .sev == "High") | select(.fix == "fixed")] | length)
-      ] | @tsv' <"$tmp/result.json")
-  critical=$(printf '%s' "$counts" | cut -f1)
-  high=$(printf '%s' "$counts" | cut -f2)
-  fixable=$(printf '%s' "$counts" | cut -f3)
+      ] | @tsv' <"$1"
+}
+
+{
+  grep -hE '^[[:space:]]*image:.*@sha256:[0-9a-f]{64}' compose.yaml compose/*.yaml | awk '{print $2}'
+  grep -hE '^FROM .*@sha256:[0-9a-f]{64}' images/*/Dockerfile | awk '{print $2}'
+} | sort -u >"$tmp/images"
+[ -s "$tmp/images" ] || die "no pinned images found"
+
+failed=0
+{
+  echo '| Image | Critical | High | High or critical with a fix | Critical with VEX | High with VEX | Gate |'
+  echo '| ----- | -------- | ---- | --------------------------- | ----------------- | ------------- | ---- |'
+} >"$tmp/report"
+
+while read -r image; do
+  vex_critical=-
+  vex_high=-
+  case $image in
+    dhi.io/*)
+      docker pull -q "$image" >/dev/null
+      docker save "$image" -o "$SCAN_DIR/image.tar"
+      tools grype docker-archive:/scan/image.tar -o json -q >"$tmp/result.json"
+      vex_critical=n/a
+      vex_high=n/a
+      if docker scout vex get "registry://$image" --output "$SCAN_DIR/vex.json" >/dev/null 2>&1 && [ -s "$SCAN_DIR/vex.json" ]; then
+        tools grype docker-archive:/scan/image.tar --vex /scan/vex.json -o json -q >"$tmp/vex-result.json"
+        vex=$(counts "$tmp/vex-result.json")
+        vex_critical=$(printf '%s' "$vex" | cut -f1)
+        vex_high=$(printf '%s' "$vex" | cut -f2)
+      fi
+      rm -f "$SCAN_DIR/image.tar" "$SCAN_DIR/vex.json"
+      ;;
+    *)
+      tools grype "registry:$image" -o json -q >"$tmp/result.json"
+      ;;
+  esac
+  raw=$(counts "$tmp/result.json")
+  critical=$(printf '%s' "$raw" | cut -f1)
+  high=$(printf '%s' "$raw" | cut -f2)
+  fixable=$(printf '%s' "$raw" | cut -f3)
   gate=reported
   case $image in
     ghcr.io/reference-systems-lab/*)
@@ -54,9 +85,8 @@ while read -r image; do
       fi
       ;;
   esac
-  echo "| \`${image%%@*}\` | $critical | $high | $fixable | $gate |" >>"$tmp/report"
+  echo "| \`${image%%@*}\` | $critical | $high | $fixable | $vex_critical | $vex_high | $gate |" >>"$tmp/report"
 done <"$tmp/images"
-[ -s "$tmp/images" ] || die "no pinned images found"
 
 cat "$tmp/report"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then

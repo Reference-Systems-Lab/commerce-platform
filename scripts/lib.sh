@@ -51,6 +51,20 @@ volume_exists() {
   docker volume inspect "$1" >/dev/null 2>&1
 }
 
+# dhi_unreadable: print the first Docker Hardened Image in compose.yaml that is neither pulled already
+# nor readable with this machine's Docker login. Returns 1 when there is none, so working offline with
+# pulled images needs nothing.
+dhi_unreadable() {
+  for image in $(sed -n 's/^[[:space:]]*image:[[:space:]]*\(dhi\.io\/[^[:space:]]*\).*/\1/p' compose.yaml); do
+    docker image inspect "$image" >/dev/null 2>&1 && continue
+    docker manifest inspect "$image" >/dev/null 2>&1 && continue
+    printf '%s\n' "${image%%@*}"
+    return 0
+  done
+  return 1
+}
+DHI_LOGIN_HINT="Run 'docker login dhi.io' with a free Docker account, and check your network (README, Getting started)."
+
 # env_get <key>: the value of key in .env, or nothing.
 env_get() {
   sed -n "s/^$1=//p" .env 2>/dev/null | tail -n 1

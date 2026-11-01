@@ -21,5 +21,23 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Log in to Docker Hardened Images
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: dhi.io
+          username: ${{ secrets.DHI_USERNAME }}
+          password: ${{ secrets.DHI_TOKEN }}
+
+      - name: Install Docker Scout from its pinned image, to read the VEX statements
+        run: |
+          image=$(docker compose -f compose.tools.yaml config --images scout-cli)
+          container=$(docker create "$image")
+          mkdir -p "$HOME/.docker/cli-plugins"
+          docker cp "$container:/docker-scout" "$HOME/.docker/cli-plugins/docker-scout"
+          docker rm "$container"
+
       - name: Scan every pinned image with Grype
+        env:
+          DOCKER_SCOUT_HUB_USER: ${{ secrets.DHI_USERNAME }}
+          DOCKER_SCOUT_HUB_PASSWORD: ${{ secrets.DHI_TOKEN }}
         run: make scan

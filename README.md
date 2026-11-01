@@ -40,7 +40,11 @@ placeholder until the storefront arrives.
 You need Docker Desktop (WSL2 or macOS) or Docker Engine (Linux) with Compose 5 or newer, `make`,
 `openssl` and `curl`. On Windows, clone into the WSL filesystem (such as `~/code`), not under `/mnt`.
 
+You also need a free Docker account, because Postgres and Valkey are Docker Hardened Images. Log in
+once; the login stays in your Docker config, never in this repository.
+
 ```sh
+docker login dhi.io
 make bootstrap   # secrets, certificates, and trust for the root certificate
 make hosts       # adds the missing local addresses to your hosts file
 make up          # starts everything and waits until it's healthy
@@ -128,6 +132,9 @@ certificates, trust and the hosts file, and says what to do about each problem.
 - **`api.` or `mail.` answers "not running yet" while its service is healthy.** The proxy can't
   resolve the service's name, which happens when a pull changed the platform's networks under a running
   stack. `make down` then `make up` recreates them.
+- **`make up` fails with `Permission denied` from Postgres or Valkey.** `initdb: could not create
+  directory`, or `can't open the RDB file`. The data volume dates from before these services moved to
+  Docker Hardened Images, which run as different users. `make reset` starts the data over.
 - **A credential stopped working.** Postgres and RabbitMQ keep the password from their first start
   in their data volume. If `.env` changed since, `make reset` starts the data over.
 

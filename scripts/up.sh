@@ -11,6 +11,10 @@ for f in .env secrets/postgres_password secrets/valkey.conf certs/leaf/cert.pem 
   [ -f "$f" ] || die "$f is missing. Run 'make bootstrap' first."
 done
 
+if image=$(dhi_unreadable); then
+  die "Docker can't read $image. $DHI_LOGIN_HINT"
+fi
+
 set -f # the file list is expanded unquoted
 files=$(compose_files)
 # shellcheck disable=SC2086 # one word per argument; no spaces or globs (compose_files)

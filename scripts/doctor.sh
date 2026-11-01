@@ -55,6 +55,13 @@ if [ "${1:-}" = --preflight ]; then
   exit 0
 fi
 command -v curl >/dev/null 2>&1 || meh "curl isn't installed: make smoke needs it."
+if ! docker info >/dev/null 2>&1; then
+  :
+elif image=$(dhi_unreadable); then
+  bad "Docker can't read $image. $DHI_LOGIN_HINT"
+else
+  ok "the Docker Hardened Images are pulled or readable"
+fi
 
 info "This machine"
 # ports: 80 and 443 for the proxy, 15672 for RabbitMQ's management UI, all on 127.0.0.1.
