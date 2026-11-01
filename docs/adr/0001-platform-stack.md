@@ -60,7 +60,7 @@ both, including where the build had to differ from the spike.
   option"). The file, `secrets/postgres_password`, is written from `.env` by bootstrap.
 - **The certificate's key and the secret file are mode 0644.** Compose bind-mounts both, and
   ignores ownership and mode for file secrets, so the containers' non-root users (101 for the
-  proxy, 999 for Postgres) can read them only if everyone can. Both sit in gitignored directories
+  proxy, 70 for Postgres) can read them only if everyone can. Both sit in gitignored directories
   on a single-user machine, and the key belongs to a short-lived certificate the root constrains.
   The root's key stays 0600 in a 0700 directory and is never mounted.
 - **IPv6 is excluded from the root in the expanded form.** `openssl` rejects the short `IP:::/0`;
@@ -113,3 +113,33 @@ both, including where the build had to differ from the spike.
   declares its own infrastructure needs; the platform provisions them. A service that uses the
   infrastructure joins `data` (and `edge` if the proxy routes to it), and connects to Valkey with
   `VALKEY_PASSWORD`; a frontend joins only `edge`.
+
+## Amendment, 2026-10-31: Postgres and Valkey on Docker Hardened Images
+
+**Why.** The weekly scan (`make scan`) listed 1 critical and 89 high findings on `postgres:18.6-trixie`,
+and 65 high on `valkey/valkey:9.1.2-trixie`, almost none of which we can fix from here.
+
+**Decision (@ABilenduke).** Both services run from `dhi.io`, pinned by digest, as the users those images
+set: 70 for Postgres and 65532 for Valkey. The other services don't move. Valkey moves from 9.1.2 to
+9.1.3, because that is the patched build; `dhi.io/valkey:9.1.2` dates from September.
+
+| Image | Before | Hardened, raw | Hardened, with VEX |
+| ----- | ------ | ------------- | ------------------ |
+| Postgres 18.6 | 1 / 89 | 9 / 62 | 0 / 15 |
+| Valkey | 0 / 65 | 2 / 14 | 0 / 2 |
+
+(Critical / high, Grype 0.121, 2026-10-31.)
+
+**Consequences.**
+
+- Running the platform now needs a free Docker account and `docker login dhi.io`, and CI and Dependabot
+  need a read-only token in the repository's secrets. Mirroring to a public registry would avoid this,
+  but needs a paid plan.
+- The raw counts include more criticals than before. The gain rests on the VEX statements, which are
+  Docker's own claims and which we haven't checked, so `make scan` reports both counts. Both services
+  stay report-only.
+- The free tier gives continuous patching, but its 7-day fix commitment is paid-only.
+- Neither image has `sed` or `grep`, so anything run inside them uses shell builtins.
+- A data volume from before the move needs `make reset`, because the users changed.
+- The backend's and storefront's tests stay on the official Postgres image at the same version, so their
+  tests need no login. The smoke test and `make seed` cover the backend against the hardened image.

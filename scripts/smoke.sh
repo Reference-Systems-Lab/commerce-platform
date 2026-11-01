@@ -127,7 +127,7 @@ check "Postgres: a wrong password is refused"
 
 # shellcheck disable=SC2016 # expanded by the container's shell, so the password stays off the command line
 want "with the password" PONG "$(docker compose exec -T valkey sh -c \
-  'VALKEYCLI_AUTH="$(sed -n "s/^requirepass //p" /run/secrets/valkey_config)" valkey-cli -h valkey ping' 2>&1 || true)"
+  'read -r _ VALKEYCLI_AUTH </run/secrets/valkey_config; export VALKEYCLI_AUTH; valkey-cli -h valkey ping' 2>&1 || true)"
 want "without it" "NOAUTH Authentication required." "$(docker compose exec -T valkey valkey-cli -h valkey ping 2>&1 || true)"
 check "Valkey: valkey-cli -h valkey answers only with the password"
 
