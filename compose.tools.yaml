@@ -48,4 +48,4 @@ services:
   # Never run here: CI copies the plugin out of this image, so Dependabot and make lint cover its pin.
   scout-cli:
     <<: *tool
-    image: docker/scout-cli:1.28.0@sha256:3f9d5fd0b7093853383800941ff50825c77a2bd6cf118717f158c2efc18ac3c3
+    image: docker/scout-cli:1.29.0@sha256:5c117dd8f4a9a7b623b23a3983b3cd60ddf6c689349f96f03dee21dca8ec9cf9
