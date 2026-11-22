@@ -51,14 +51,41 @@ volume_exists() {
   docker volume inspect "$1" >/dev/null 2>&1
 }
 
+# with_timeout <seconds> <command> [args...]: run the command, and stop it if it hasn't finished after
+# that many seconds. Returns the command's status, or 124 when it was stopped. Plain sh, because
+# macOS has no GNU timeout.
+with_timeout() {
+  wt_seconds=$1
+  shift
+  "$@" &
+  wt_pid=$!
+  (
+    # Stopped early, the watcher stops its sleep too, so nothing outlives the command.
+    trap 'kill "$wt_sleep" 2>/dev/null; exit 0' TERM
+    sleep "$wt_seconds" &
+    wt_sleep=$!
+    wait "$wt_sleep"
+    kill "$wt_pid" 2>/dev/null && echo stopped
+  ) >"${TMPDIR:-/tmp}/with_timeout.$$" &
+  wt_watcher=$!
+  wt_status=0
+  wait "$wt_pid" || wt_status=$?
+  kill "$wt_watcher" 2>/dev/null || true
+  wait "$wt_watcher" 2>/dev/null || true
+  if [ -s "${TMPDIR:-/tmp}/with_timeout.$$" ]; then wt_status=124; fi
+  rm -f "${TMPDIR:-/tmp}/with_timeout.$$"
+  return "$wt_status"
+}
+
 # dhi_unreadable: print the first Docker Hardened Image in compose.yaml that is neither pulled already
 # nor readable with this machine's Docker login. Returns 1 when there is none, so working offline with
-# pulled images needs nothing.
+# pulled images needs nothing. A registry that doesn't answer in 20 seconds counts as unreadable, so
+# a network that drops packets gets the hint instead of a hang.
 dhi_unreadable() {
   # shellcheck disable=SC2013 # image references hold no spaces
   for image in $(sed -n 's/^[[:space:]]*image:[[:space:]]*\(dhi\.io\/[^[:space:]]*\).*/\1/p' compose.yaml); do
     docker image inspect "$image" >/dev/null 2>&1 && continue
-    docker manifest inspect "$image" >/dev/null 2>&1 && continue
+    with_timeout 20 docker manifest inspect "$image" >/dev/null 2>&1 && continue
     printf '%s\n' "${image%%@*}"
     return 0
   done

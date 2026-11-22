@@ -96,6 +96,9 @@ jobs:
       - name: Hosts tests
         run: /bin/sh tests/hosts.test.sh
 
+      - name: Timeout tests
+        run: /bin/sh tests/timeout.test.sh
+
   linux-bootstrap:
     # The developer flow on a real Linux machine: make trust and make hosts with sudo, the system trust
     # store, an NSS database, and /etc/hosts. Smoke skips all of that (bootstrap --ci).
