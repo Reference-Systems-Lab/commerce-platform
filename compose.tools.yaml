@@ -34,7 +34,7 @@ services:
   grype:
     <<: *tool
     network_mode: bridge
-    image: anchore/grype:v0.121.0@sha256:621d56d1d68106b787022c81546f7e0a36202a25d1239f0c20195fab8c16f7ea
+    image: anchore/grype:v0.121.3@sha256:13113eeceab017260370cf540e1d25442c59665fd07d1b09b66d63bb0c282887
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     tmpfs: ["/tmp:size=6g,mode=1777"]
     environment:

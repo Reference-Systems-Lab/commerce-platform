@@ -3,13 +3,13 @@
 # names (make lint checks). The API waits for the migration, which waits for Postgres.
 services:
   backend-migrate:
-    image: ghcr.io/reference-systems-lab/commerce-backend:0.1.1@sha256:9856144cf27707b7bac41994bd4e2d48fc20af7b1d4e3076a94c8d6fc36da550
+    image: ghcr.io/reference-systems-lab/commerce-backend:0.1.2@sha256:a8abbec28249f27d75989ca508b65e268b484bb42e3049d674a169b096f28171
     networks: [data]
     depends_on:
       postgres: { condition: service_healthy }
 
   backend-api:
-    image: ghcr.io/reference-systems-lab/commerce-backend:0.1.1@sha256:9856144cf27707b7bac41994bd4e2d48fc20af7b1d4e3076a94c8d6fc36da550
+    image: ghcr.io/reference-systems-lab/commerce-backend:0.1.2@sha256:a8abbec28249f27d75989ca508b65e268b484bb42e3049d674a169b096f28171
     networks: [data, edge] # data for Postgres; edge so the proxy can reach it
     depends_on:
       backend-migrate: { condition: service_completed_successfully }
