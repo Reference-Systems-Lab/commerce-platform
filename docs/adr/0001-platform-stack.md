@@ -116,19 +116,20 @@ both, including where the build had to differ from the spike.
 
 ## Amendment, 2026-10-31: Postgres and Valkey on Docker Hardened Images
 
-**Why.** The weekly scan (`make scan`) listed 1 critical and 89 high findings on `postgres:18.6-trixie`,
-and 65 high on `valkey/valkey:9.1.2-trixie`, almost none of which we can fix from here.
+**Why.** The scan (`make scan`) lists 1 critical and 137 high findings on `postgres:18.7-trixie`, and
+75 high on `valkey/valkey:9.1.3-trixie`, almost none of which we can fix from here.
 
 **Decision (@ABilenduke).** Both services run from `dhi.io`, pinned by digest, as the users those images
-set: 70 for Postgres and 65532 for Valkey. The other services don't move. Valkey moves from 9.1.2 to
-9.1.3, because that is the patched build; `dhi.io/valkey:9.1.2` dates from September.
+set: 70 for Postgres and 65532 for Valkey, at the same releases as before (Postgres 18.7, Valkey
+9.1.3). The other services don't move.
 
 | Image | Before | Hardened, raw | Hardened, with VEX |
 | ----- | ------ | ------------- | ------------------ |
-| Postgres 18.6 | 1 / 89 | 9 / 62 | 0 / 15 |
-| Valkey | 0 / 65 | 2 / 14 | 0 / 2 |
+| Postgres 18.7 | 1 / 137 | 9 / 106 | 1 / 29 |
+| Valkey 9.1.3 | 0 / 75 | 2 / 20 | 0 / 5 |
 
-(Critical / high, Grype 0.121, 2026-10-31.)
+(Critical / high, Grype 0.121, 2026-11-22.) The critical left on both Postgres images is libxml2
+CVE-2026-6653, which Debian marks won't-fix and Docker's VEX doesn't cover.
 
 **Consequences.**
 
