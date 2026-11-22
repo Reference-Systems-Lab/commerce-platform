@@ -20,7 +20,7 @@ name: rsl-commerce
 # (ADR 0002). Bump the commit, its comment and the wiring's image together; make lint checks they agree.
 include:
   - path:
-      - https://github.com/Reference-Systems-Lab/commerce-backend.git#18d9b5ead8e3de829db68d4e0efbb74939c6812e:compose.platform.yaml # v0.1.1
+      - https://github.com/Reference-Systems-Lab/commerce-backend.git#6bc72eb2581eabd030c428f584a095a7898d1c30:compose.platform.yaml # v0.1.2
       - compose/compose.backend.yaml
     env_file: compose/backend.env
 
