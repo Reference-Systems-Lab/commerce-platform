@@ -23,3 +23,9 @@ logic. Read the root [`AGENTS.md`](../AGENTS.md) as well; this file wins where t
   read-only reviewers go over it: security, containers and proxy, shell portability, and acceptance
   coverage. Second, a rehearsal from nothing: `make reset`, then `make bootstrap` and `make up` on a
   clean checkout. Step-by-step checks miss what these catch.
+- The reviewers are read-only: they never run a repository script or `make` target, not even in a
+  clone of their own, because `make bootstrap` writes to this machine's trust store. The rehearsal is
+  run by whoever makes the change.
+- A Dependabot pull request that changes only `compose.tools.yaml` (Grype, Scout, jq and the
+  linters, none of which runs in the platform itself) needs green CI, plus a dispatched `Scan` run
+  when it bumps Grype or Scout, because CI doesn't run them and Scout runs with a Docker token.

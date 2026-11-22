@@ -126,6 +126,7 @@ step "each application's fragment and image are the same release" releases_agree
 step "each application's fragment keeps to the contract (pinned, hardened, no ports or host mounts)" fragments_contained
 step "tests/ca.test.sh" sh tests/ca.test.sh
 step "tests/hosts.test.sh" sh tests/hosts.test.sh
+step "tests/timeout.test.sh" sh tests/timeout.test.sh
 
 echo
 [ "$failures" -eq 0 ] || {
