@@ -40,9 +40,9 @@ if [ "$took" -le 4 ]; then pass "it is stopped soon after the limit (${took}s)";
 fi
 
 started=$(date +%s)
-out=$(with_timeout 20 echo done)
+out=$(with_timeout 20 echo finished)
 took=$(($(date +%s) - started))
-if [ "$out" = done ] && [ "$took" -le 3 ]; then
+if [ "$out" = finished ] && [ "$took" -le 3 ]; then
   pass "a command substitution returns when the command does (${took}s)"
 else
   flunk "a command substitution returns when the command does (got '$out' after ${took}s)"

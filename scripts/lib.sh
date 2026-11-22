@@ -53,27 +53,29 @@ volume_exists() {
 
 # with_timeout <seconds> <command> [args...]: run the command, and stop it if it hasn't finished after
 # that many seconds. Returns the command's status, or 124 when it was stopped. Plain sh, because
-# macOS has no GNU timeout.
+# macOS has no GNU timeout. The watcher reports a stop through its own exit status, so no file is
+# needed.
 with_timeout() {
   wt_seconds=$1
   shift
   "$@" &
   wt_pid=$!
   (
-    # Stopped early, the watcher stops its sleep too, so nothing outlives the command.
-    trap 'kill "$wt_sleep" 2>/dev/null; exit 0' TERM
+    # Stopped early, the watcher stops its sleep too. $! is the sleep once it has started, and the
+    # command (already finished) before then. At worst, a sleep left behind runs out by itself.
+    trap 'if [ "$!" != "$wt_pid" ]; then kill "$!" 2>/dev/null; fi; exit 0' TERM
     sleep "$wt_seconds" &
-    wt_sleep=$!
-    wait "$wt_sleep"
-    kill "$wt_pid" 2>/dev/null && echo stopped
-  ) >"${TMPDIR:-/tmp}/with_timeout.$$" &
+    wait "$!"
+    if kill "$wt_pid" 2>/dev/null; then exit 3; fi
+    exit 0
+  ) &
   wt_watcher=$!
   wt_status=0
   wait "$wt_pid" || wt_status=$?
   kill "$wt_watcher" 2>/dev/null || true
-  wait "$wt_watcher" 2>/dev/null || true
-  if [ -s "${TMPDIR:-/tmp}/with_timeout.$$" ]; then wt_status=124; fi
-  rm -f "${TMPDIR:-/tmp}/with_timeout.$$"
+  wt_stopped=0
+  wait "$wt_watcher" || wt_stopped=$?
+  if [ "$wt_stopped" -eq 3 ]; then wt_status=124; fi
   return "$wt_status"
 }
 
