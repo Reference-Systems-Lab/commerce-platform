@@ -15,7 +15,9 @@ logic. Read the root [`AGENTS.md`](../AGENTS.md) as well; this file wins where t
 
 - A new contributor should reach a working environment with as few manual steps as possible.
   Adding a manual step needs a strong reason.
-- Development secrets only. Running the platform must never require a real secret.
+- Development secrets only. Running the platform must never require a real secret, with one
+  exception: a personal Docker login, for the Docker Hardened Images, which never enters this
+  repository (ADR 0001).
 - Every service added must meet a real need of the system.
 - Before an infrastructure change opens its pull request, it gets two checks. First, independent
   read-only reviewers go over it: security, containers and proxy, shell portability, and acceptance

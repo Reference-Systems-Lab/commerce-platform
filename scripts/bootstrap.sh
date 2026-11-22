@@ -24,6 +24,10 @@ sh scripts/doctor.sh --preflight >/dev/null || {
   sh scripts/doctor.sh --preflight
   die "fix the failures above, then run 'make bootstrap' again."
 }
+# CI's lint job bootstraps without pulling anything, so it needs no login.
+if [ "${1:-}" != --ci ] && image=$(dhi_unreadable); then
+  die "Docker can't read $image. $DHI_LOGIN_HINT"
+fi
 info "Secrets"
 sh scripts/gen-env.sh
 info "Certificates"

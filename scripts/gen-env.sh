@@ -50,7 +50,7 @@ done
 
 # Postgres and Valkey read their passwords from file-sourced Compose secrets, so no password appears in
 # an environment variable or on a command line. Compose ignores uid, gid and mode for file secrets (they
-# are bind mounts), so the files are world-readable for the containers' uid 999. They stay inside the
+# are bind mounts), so the files are world-readable for the containers' uids. They stay inside the
 # gitignored secrets/ directory on this machine.
 mkdir -p secrets
 chmod 755 secrets
