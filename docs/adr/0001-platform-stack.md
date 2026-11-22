@@ -148,6 +148,6 @@ CVE-2026-6653, which Debian marks won't-fix and Docker's VEX doesn't cover.
 ## Amendment, 2026-11-21: RabbitMQ 4.4
 
 RabbitMQ runs 4.4.0 (`rabbitmq:4.4.0-management`, #26), not 4.3. Its security advisories
-GHSA-9h6g-46wc-m2f5 and GHSA-3wxh-g236-vm46 affect 4.3.x below 4.3.7 and were fixed in the 4.4 line
-before 4.4.0, so the newer minor release carries both fixes. Quorum queues stay the default. A 4.4
+GHSA-9h6g-46wc-m2f5 and GHSA-3wxh-g236-vm46 list only 4.3.x below 4.3.7, and the `v4.4.0` source
+carries both fixes (checked in #26). Quorum queues stay the default. A 4.4
 volume can't go back to 4.3, so a rollback past #26 needs `make reset`.

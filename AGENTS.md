@@ -26,5 +26,6 @@ logic. Read the root [`AGENTS.md`](../AGENTS.md) as well; this file wins where t
 - The reviewers are read-only: they never run a repository script or `make` target, not even in a
   clone of their own, because `make bootstrap` writes to this machine's trust store. The rehearsal is
   run by whoever makes the change.
-- A Dependabot bump of a tool image in `compose.tools.yaml` (Grype, Scout, jq and the linters) needs
-  green CI only, since none of them runs in the platform itself.
+- A Dependabot pull request that changes only `compose.tools.yaml` (Grype, Scout, jq and the
+  linters, none of which runs in the platform itself) needs green CI, plus a dispatched `Scan` run
+  when it bumps Grype or Scout, because CI doesn't run them and Scout runs with a Docker token.

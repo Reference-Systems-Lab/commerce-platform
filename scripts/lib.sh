@@ -66,9 +66,19 @@ with_timeout() {
     trap 'if [ "$!" != "$wt_pid" ]; then kill "$!" 2>/dev/null; fi; exit 0' TERM
     sleep "$wt_seconds" &
     wait "$!"
-    if kill "$wt_pid" 2>/dev/null; then exit 3; fi
+    # Past the limit: stop the command, and kill it if it ignores that for a few seconds.
+    trap '' TERM
+    if kill "$wt_pid" 2>/dev/null; then
+      wt_grace=0
+      while kill -0 "$wt_pid" 2>/dev/null && [ "$wt_grace" -lt 3 ]; do
+        sleep 1
+        wt_grace=$((wt_grace + 1))
+      done
+      kill -s KILL "$wt_pid" 2>/dev/null || true
+      exit 3
+    fi
     exit 0
-  ) &
+  ) >/dev/null 2>&1 &
   wt_watcher=$!
   wt_status=0
   wait "$wt_pid" || wt_status=$?
