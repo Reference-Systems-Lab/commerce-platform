@@ -128,7 +128,7 @@ set: 70 for Postgres and 65532 for Valkey, at the same releases as before (Postg
 | Postgres 18.7 | 1 / 137 | 9 / 106 | 1 / 29 |
 | Valkey 9.1.3 | 0 / 75 | 2 / 20 | 0 / 5 |
 
-(Critical / high, Grype 0.121, 2026-11-22.) The critical left on both Postgres images is libxml2
+(Critical / high, Grype 0.121, 2026-11-21.) The critical left on both Postgres images is libxml2
 CVE-2026-6653, which Debian marks won't-fix and Docker's VEX doesn't cover.
 
 **Consequences.**
