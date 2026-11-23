@@ -60,7 +60,7 @@ services:
 
   postgres:
     <<: *hardened
-    image: dhi.io/postgres:18.7@sha256:4e4265edbd4ea0885e221a6ad623b449f65bc3180895eb3cb4093b23e144d9ee
+    image: dhi.io/postgres:18.7@sha256:598e8de5b927a839809075288a916bc425dba6eacc5851b057e2e113c91f3176
     user: "70:70"
     environment:
       POSTGRES_USER: commerce
