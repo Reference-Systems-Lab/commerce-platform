@@ -84,7 +84,7 @@ services:
   # from a secret file so it never appears on a command line.
   valkey:
     <<: *hardened
-    image: dhi.io/valkey:9.1.4@sha256:08d95fa899d98960fe4af44d3d94a176f3efaa03427572a2ff2865348d65e01b
+    image: dhi.io/valkey:9.1.4@sha256:c999dbf64ed556df00eb226b5a5cdae8646b47e1fa7254711e73afd0522ec5b3
     user: "65532:65532"
     command: ["valkey-server", "/run/secrets/valkey_config"]
     environment:
